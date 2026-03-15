@@ -58,10 +58,11 @@ def collect_tests(*, config: TestMapConfig | None = None) -> list[str]:
     """
     if config is None:
         config = TestMapConfig()
-    venv_bin = Path(sys.executable).parent
     result = subprocess.run(
         [
-            str(venv_bin / "pytest"),
+            sys.executable,
+            "-m",
+            "pytest",
             "--collect-only",
             "-qq",
             "-p",
@@ -121,12 +122,30 @@ def _ci_tier(env_markers: set[str]) -> str:
     return "host"
 
 
-def _group_by_directory(test_ids: list[str]) -> dict[str, list[str]]:
+def _group_by_directory(
+    test_ids: list[str], integration_dir: Path | None = None
+) -> dict[str, list[str]]:
     """Group test IDs by their integration test subdirectory."""
+    # Build candidate prefixes: the integration dir path (absolute or relative) + fallback
+    prefixes: list[str] = []
+    if integration_dir is not None:
+        prefixes.append(f"{integration_dir}/".replace("\\", "/"))
+        # Also try the relative form (pytest emits relative paths)
+        try:
+            rel = integration_dir.relative_to(Path.cwd())
+            prefixes.append(f"{rel}/".replace("\\", "/"))
+        except ValueError:
+            pass
+    prefixes.append("tests/integration/")
+
     groups: dict[str, list[str]] = defaultdict(list)
     for tid in test_ids:
         file_path = tid.split("::")[0]
-        rel = file_path.replace("tests/integration/", "")
+        rel = file_path
+        for pfx in prefixes:
+            if pfx in file_path:
+                rel = file_path.replace(pfx, "", 1)
+                break
         subdir = rel.split("/")[0] if "/" in rel else "(root)"
         groups[subdir].append(tid)
     return groups
@@ -196,7 +215,7 @@ def generate_test_map(
     if test_ids is None:
         test_ids = collect_tests(config=config)
 
-    groups = _group_by_directory(test_ids)
+    groups = _group_by_directory(test_ids, config.resolved_integration_dir)
     now = datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC")
     lines = [
         f"# {config.title}\n\n",

@@ -82,17 +82,16 @@ def test_quality_report_config_custom_buckets() -> None:
 
 
 @pytest.mark.parametrize(
-    ("treemap_exists", "codecov_repo", "codecov_token", "expected_fragment"),
+    ("treemap_exists", "codecov_repo", "expected_fragment"),
     [
-        pytest.param(False, "", "", "not available", id="no-treemap-no-codecov"),
-        pytest.param(False, "org/repo", "tok", "codecov.io", id="codecov-url-fallback"),
+        pytest.param(False, "", "not available", id="no-treemap-no-codecov"),
+        pytest.param(False, "org/repo", "codecov.io", id="codecov-url-fallback"),
     ],
 )
 def test_coverage_treemap_variants(
     tmp_path: Path,
     treemap_exists: bool,
     codecov_repo: str,
-    codecov_token: str,
     expected_fragment: str,
 ) -> None:
     """Coverage treemap section should handle different config combinations."""
@@ -106,7 +105,6 @@ def test_coverage_treemap_variants(
         tests_dir=tmp_path / "tests",
         codecov_treemap_path=treemap_path,
         codecov_repo=codecov_repo,
-        codecov_token=codecov_token,
     )
     (tmp_path / "src").mkdir(exist_ok=True)
     (tmp_path / "tests").mkdir(exist_ok=True)

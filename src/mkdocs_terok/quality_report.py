@@ -48,7 +48,6 @@ class QualityReportConfig:
     vulture_min_confidence: int = 80
     codecov_treemap_path: Path | None = None
     codecov_repo: str = ""
-    codecov_token: str = ""
     file_level_loc: bool = True
     include_layer_overview: bool = False
     include_graph_coarsening: bool = False
@@ -171,7 +170,7 @@ def _load_tach_toml(root: Path) -> tuple[str, dict, list[dict]] | None:
     raw = tach_path.read_text(encoding="utf-8")
     try:
         data = tomllib.loads(raw)
-    except Exception:
+    except tomllib.TOMLDecodeError:
         return None
     modules = data.get("modules", [])
     return (raw, data, modules)
@@ -186,6 +185,8 @@ def _walk_source_tree(
     base: Path, lines: list[str], *, cwd: Path, file_level: bool, prefix: str = ""
 ) -> None:
     """Recursively collect LoC table rows for files and subdirs under *base*."""
+    if not base.is_dir():
+        return
     n = _nbsp_num
     entries = sorted(base.iterdir(), key=lambda p: (p.is_file(), p.name))
     for entry in entries:
@@ -215,6 +216,8 @@ def _section_loc(cfg: QualityReportConfig) -> str:
 
     if not shutil.which("scc"):
         return "!!! warning\n    `scc` not found — skipping LoC report. Install from https://github.com/boyter/scc\n"
+    if not cfg.resolved_src_dir.is_dir():
+        return "!!! warning\n    Source directory not found — skipping LoC report.\n"
 
     n = _nbsp_num
     src_totals = _scc_totals(cfg.resolved_src_dir, cwd=cfg.root)
@@ -567,10 +570,10 @@ def _section_coverage_treemap(cfg: QualityReportConfig) -> tuple[str, dict[str, 
     if cfg.codecov_treemap_path and cfg.codecov_treemap_path.is_file():
         svg = cfg.codecov_treemap_path.read_text(encoding="utf-8")
         companion["coverage_treemap.svg"] = svg
-        src = "../coverage_treemap.svg"
-    elif cfg.codecov_repo and cfg.codecov_token:
+        src = "coverage_treemap.svg"
+    elif cfg.codecov_repo:
         base = f"https://codecov.io/gh/{cfg.codecov_repo}"
-        src = f"{base}/graphs/tree.svg?token={cfg.codecov_token}"
+        src = f"{base}/graphs/tree.svg"
     else:
         return (
             "!!! info\n    Coverage treemap not available (CI downloads it at build time).\n\n",

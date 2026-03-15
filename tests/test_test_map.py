@@ -125,7 +125,12 @@ def test_generate_test_map_with_markers(monkeypatch: pytest.MonkeyPatch) -> None
             return datetime(2026, 3, 15, 12, 0, tzinfo=UTC)
 
     monkeypatch.setattr("mkdocs_terok.test_map.datetime", FixedDateTime)
+    monkeypatch.setattr(
+        "mkdocs_terok.test_map._extract_markers",
+        lambda _path: {"_module": ["needs_internet"]},
+    )
 
     report = generate_test_map(test_ids, config=config)
 
     assert "| Test | Class | CI Tier | Markers |" in report
+    assert "| `test_help` | `` | network | `needs_internet` |" in report

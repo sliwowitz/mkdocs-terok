@@ -17,10 +17,19 @@ from __future__ import annotations
 
 import io
 import json
+import types
+import typing
 from typing import get_args, get_origin
 
 from pydantic import BaseModel
 from pydantic.fields import FieldInfo
+
+_UNION_ORIGINS = {types.UnionType, typing.Union}
+
+
+def _is_union(origin: object) -> bool:
+    """Check if an origin represents a Union type (PEP 604 or typing.Union)."""
+    return origin in _UNION_ORIGINS
 
 
 def _type_str(field_info: FieldInfo) -> str:
@@ -32,12 +41,12 @@ def _type_str(field_info: FieldInfo) -> str:
     origin = get_origin(annotation)
     args = get_args(annotation)
 
-    # Handle Union types (e.g. str | None from Optional)
-    if origin is type(str | None):  # types.UnionType
+    # Handle Union types: both `str | None` (PEP 604) and `Optional[str]` / `Union[...]`
+    if _is_union(origin) and args:
         non_none = [a for a in args if a is not type(None)]
-        if len(non_none) == 1:
-            return f"{_simple_type_name(non_none[0])} or null"
-        return " or ".join(_simple_type_name(a) for a in non_none) + " or null"
+        has_none = type(None) in args
+        type_parts = " or ".join(_simple_type_name(a) for a in non_none)
+        return f"{type_parts} or null" if has_none else type_parts
 
     if origin is list:
         inner = _simple_type_name(args[0]) if args else "any"
@@ -97,6 +106,11 @@ def _is_section_field(field_info: FieldInfo) -> bool:
     ann = field_info.annotation
     if ann is None:
         return False
+    # Unwrap Optional/Union to find the inner model type
+    if _is_union(get_origin(ann)):
+        non_none = [a for a in get_args(ann) if a is not type(None)]
+        if len(non_none) == 1:
+            ann = non_none[0]
     return isinstance(ann, type) and issubclass(ann, BaseModel)
 
 

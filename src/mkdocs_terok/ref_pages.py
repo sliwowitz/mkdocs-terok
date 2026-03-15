@@ -75,6 +75,6 @@ def generate_ref_pages(
         ident = ".".join(parts)
         write_file(full_doc_path.as_posix(), f"::: {ident}")
         set_edit_path(full_doc_path.as_posix(), path.relative_to(config.src_dir.parent).as_posix())
-        entries.append((parts, doc_path.as_posix()))
+        entries.append((parts, full_doc_path.as_posix()))
 
     return entries

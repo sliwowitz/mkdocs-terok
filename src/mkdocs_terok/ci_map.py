@@ -3,8 +3,8 @@
 
 """Generate a Markdown map of GitHub workflows and jobs.
 
-Parses ``.github/workflows/*.yml`` and produces a Markdown document with
-workflow summary and per-job detail tables.
+Parses ``.github/workflows/*.yml`` and ``.yaml`` files and produces a
+Markdown document with workflow summary and per-job detail tables.
 """
 
 from __future__ import annotations
@@ -69,7 +69,8 @@ def load_workflows(workflows_dir: Path | None = None) -> list[dict[str, object]]
     if workflows_dir is None:
         workflows_dir = Path.cwd() / ".github" / "workflows"
     workflows: list[dict[str, object]] = []
-    for path in sorted(workflows_dir.glob("*.yml")):
+    yml_files = list(workflows_dir.glob("*.yml")) + list(workflows_dir.glob("*.yaml"))
+    for path in sorted(yml_files):
         data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
         if not isinstance(data, dict):
             continue

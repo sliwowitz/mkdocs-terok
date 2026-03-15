@@ -37,6 +37,14 @@ def test_generate_ref_pages_writes_stubs(tmp_path: Path) -> None:
     assert written["reference/mypkg/index.md"] == "::: mypkg"
     assert written["reference/mypkg/module_a.md"] == "::: mypkg.module_a"
 
+    # Nav entries should include the output prefix
+    nav_paths = [path for _, path in entries]
+    assert "reference/mypkg/index.md" in nav_paths
+    assert "reference/mypkg/module_a.md" in nav_paths
+
+    # Edit paths should point back to source
+    assert edit_paths["reference/mypkg/module_a.md"] == "src/mypkg/module_a.py"
+
 
 def test_generate_ref_pages_skips_patterns(tmp_path: Path) -> None:
     """Files matching skip_patterns should be excluded."""
