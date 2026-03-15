@@ -1,0 +1,30 @@
+[tool.tach]
+exact = true
+
+# Shared MkDocs documentation generators
+[[modules]]
+path = "mkdocs_terok"
+depends_on = []
+
+[[modules.interfaces]]
+expose = [
+  "brand_css_path",
+  "ci_map",
+  "ci_map.load_workflows",
+  "ci_map.generate_ci_map",
+  "test_map",
+  "test_map.TestMapConfig",
+  "test_map.collect_tests",
+  "test_map.generate_test_map",
+  "quality_report",
+  "quality_report.QualityReportConfig",
+  "quality_report.QualityReportResult",
+  "quality_report.generate_quality_report",
+  "ref_pages",
+  "ref_pages.RefPagesConfig",
+  "ref_pages.generate_ref_pages",
+  "config_reference",
+  "config_reference.render_model_tables",
+  "config_reference.render_yaml_example",
+  "config_reference.render_json_schema",
+]
