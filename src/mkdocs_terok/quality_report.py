@@ -54,15 +54,32 @@ class QualityReportConfig:
     src_label: str = "Source"
     tests_label: str = "Tests"
 
+    def __post_init__(self) -> None:
+        """Validate configuration values."""
+        if self.graph_depth < 1:
+            raise ValueError(f"graph_depth must be >= 1, got {self.graph_depth}")
+
+    def _resolve(self, path: Path | None, default: str) -> Path:
+        """Resolve a path relative to root, with a fallback default."""
+        if path is None:
+            return self.root / default
+        return path if path.is_absolute() else self.root / path
+
+    def _resolve_optional(self, path: Path | None) -> Path | None:
+        """Resolve an optional path relative to root."""
+        if path is None:
+            return None
+        return path if path.is_absolute() else self.root / path
+
     @property
     def resolved_src_dir(self) -> Path:
         """Return the source directory, falling back to ``src/`` under root."""
-        return self.src_dir if self.src_dir is not None else self.root / "src"
+        return self._resolve(self.src_dir, "src")
 
     @property
     def resolved_tests_dir(self) -> Path:
         """Return the tests directory, falling back to ``tests/`` under root."""
-        return self.tests_dir if self.tests_dir is not None else self.root / "tests"
+        return self._resolve(self.tests_dir, "tests")
 
     @property
     def resolved_histogram_buckets(self) -> Sequence[tuple[int, int]]:
@@ -354,8 +371,9 @@ def _section_complexity(cfg: QualityReportConfig) -> str:
 def _section_dead_code(cfg: QualityReportConfig) -> str:
     """Generate dead code section from vulture."""
     cmd = [sys.executable, "-m", "vulture", str(cfg.resolved_src_dir)]
-    if cfg.vulture_whitelist is not None:
-        cmd.append(str(cfg.vulture_whitelist))
+    resolved_whitelist = cfg._resolve_optional(cfg.vulture_whitelist)
+    if resolved_whitelist is not None:
+        cmd.append(str(resolved_whitelist))
     cmd.extend(["--min-confidence", str(cfg.vulture_min_confidence)])
 
     result = _run(*cmd, cwd=cfg.root)
@@ -567,8 +585,9 @@ def _section_coverage_treemap(cfg: QualityReportConfig) -> tuple[str, dict[str, 
     """Generate the coverage treemap embed and return (markdown, companion_files)."""
     companion: dict[str, str] = {}
 
-    if cfg.codecov_treemap_path and cfg.codecov_treemap_path.is_file():
-        svg = cfg.codecov_treemap_path.read_text(encoding="utf-8")
+    resolved_treemap = cfg._resolve_optional(cfg.codecov_treemap_path)
+    if resolved_treemap and resolved_treemap.is_file():
+        svg = resolved_treemap.read_text(encoding="utf-8")
         companion["coverage_treemap.svg"] = svg
         src = "coverage_treemap.svg"
     elif cfg.codecov_repo:

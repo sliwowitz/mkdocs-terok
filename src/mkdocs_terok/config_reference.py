@@ -101,17 +101,23 @@ def _default_repr(field_info: FieldInfo) -> str:
     return _scalar_default_repr(field_info.default)
 
 
-def _is_section_field(field_info: FieldInfo) -> bool:
-    """Check if a field is a nested Pydantic section model."""
+def _unwrap_section_model(field_info: FieldInfo) -> type[BaseModel] | None:
+    """Return the nested Pydantic model class, unwrapping Optional/Union if needed."""
     ann = field_info.annotation
     if ann is None:
-        return False
-    # Unwrap Optional/Union to find the inner model type
+        return None
     if _is_union(get_origin(ann)):
         non_none = [a for a in get_args(ann) if a is not type(None)]
         if len(non_none) == 1:
             ann = non_none[0]
-    return isinstance(ann, type) and issubclass(ann, BaseModel)
+    if isinstance(ann, type) and issubclass(ann, BaseModel):
+        return ann
+    return None
+
+
+def _is_section_field(field_info: FieldInfo) -> bool:
+    """Check if a field is a nested Pydantic section model."""
+    return _unwrap_section_model(field_info) is not None
 
 
 def _yaml_default(field_info: FieldInfo) -> str:
@@ -132,7 +138,7 @@ def _yaml_default(field_info: FieldInfo) -> str:
     if isinstance(d, bool):
         return str(d).lower()
     if isinstance(d, str):
-        return f'"{d}"' if " " in d or not d else d
+        return f'"{d}"' if not d or any(c in d for c in " :#{}[]") else d
     return str(d)
 
 
@@ -167,11 +173,12 @@ def _render_section_table(
     buf.write(f"{hashes} `{section_name}:`\n\n")
 
     leaf_fields: list[tuple[str, str, FieldInfo]] = []
-    sub_sections: list[tuple[str, type[BaseModel], FieldInfo]] = []
+    sub_sections: list[tuple[str, type[BaseModel]]] = []
 
     for name, field_info in model_class.model_fields.items():
-        if _is_section_field(field_info):
-            sub_sections.append((name, field_info.annotation, field_info))
+        sub_model = _unwrap_section_model(field_info)
+        if sub_model is not None:
+            sub_sections.append((name, sub_model))
         else:
             leaf_fields.append((name, prefix + name, field_info))
 
@@ -185,7 +192,7 @@ def _render_section_table(
             buf.write(f"| `{name}` | {type_s} | {default_s} | {desc} |\n")
         buf.write("\n")
 
-    for name, sub_model, _ in sub_sections:
+    for name, sub_model in sub_sections:
         _render_section_table(
             buf,
             sub_model,
@@ -216,11 +223,12 @@ def render_model_tables(
     buf = io.StringIO()
 
     leaf_fields: list[tuple[str, FieldInfo]] = []
-    sections: list[tuple[str, type[BaseModel], FieldInfo]] = []
+    sections: list[tuple[str, type[BaseModel]]] = []
 
     for name, field_info in model_class.model_fields.items():
-        if _is_section_field(field_info):
-            sections.append((name, field_info.annotation, field_info))
+        sub_model = _unwrap_section_model(field_info)
+        if sub_model is not None:
+            sections.append((name, sub_model))
         else:
             leaf_fields.append((name, field_info))
 
@@ -236,7 +244,7 @@ def render_model_tables(
             buf.write(f"| `{name}` | {type_s} | {default_s} | {desc} |\n")
         buf.write("\n")
 
-    for name, sub_model, _ in sections:
+    for name, sub_model in sections:
         _render_section_table(
             buf, sub_model, f"{name}.", field_docs=field_docs, heading_level=heading_level
         )
@@ -260,13 +268,14 @@ def _render_yaml_fields(
         dotpath = f"{prefix_path}.{name}" if prefix_path else name
         desc = field_docs.get(dotpath, field_info.description or "")
 
-        if _is_section_field(field_info):
+        sub_model = _unwrap_section_model(field_info)
+        if sub_model is not None:
             if desc:
                 buf.write(f"{pad}# {_strip_rst(desc)}\n")
             buf.write(f"{pad}{name}:\n")
             _render_yaml_fields(
                 buf,
-                field_info.annotation,
+                sub_model,
                 prefix_path=dotpath,
                 field_docs=field_docs,
                 indent=indent + 1,

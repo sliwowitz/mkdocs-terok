@@ -86,6 +86,7 @@ def test_quality_report_config_custom_buckets() -> None:
     [
         pytest.param(False, "", "not available", id="no-treemap-no-codecov"),
         pytest.param(False, "org/repo", "codecov.io", id="codecov-url-fallback"),
+        pytest.param(True, "", 'data="coverage_treemap.svg"', id="bundled-svg"),
     ],
 )
 def test_coverage_treemap_variants(
@@ -111,3 +112,5 @@ def test_coverage_treemap_variants(
 
     result = generate_quality_report(config)
     assert expected_fragment in result.markdown
+    if treemap_exists:
+        assert result.companion_files["coverage_treemap.svg"] == "<svg/>"
