@@ -15,12 +15,15 @@ concurrency:
 
 jobs:
   build:
-    if: github.repository == 'terok-ai/mkdocs-terok'
+    if: github.repository == 'terok-ai/mkdocs-terok' && github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
     permissions:
       contents: read
     steps:
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          fetch-tags: true
 
       - name: Set up Python
         id: setup-python
@@ -56,7 +59,7 @@ jobs:
           path: site/
 
   deploy:
-    if: github.repository == 'terok-ai/mkdocs-terok'
+    if: github.repository == 'terok-ai/mkdocs-terok' && github.ref == 'refs/heads/master'
     needs: build
     runs-on: ubuntu-latest
     permissions:
