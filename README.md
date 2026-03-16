@@ -1,5 +1,7 @@
 # mkdocs-terok
 
+[![codecov](https://codecov.io/gh/terok-ai/mkdocs-terok/graph/badge.svg)](https://codecov.io/gh/terok-ai/mkdocs-terok)
+
 Shared MkDocs documentation generators for terok projects.
 
 Provides reusable modules for generating CI workflow maps, integration test maps,
