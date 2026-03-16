@@ -161,11 +161,11 @@ def _md_escape(text: str) -> str:
 def _write_yaml_leaf(
     buf: io.StringIO, pad: str, name: str, field_info: FieldInfo, desc: str
 ) -> None:
-    """Write a single commented-out leaf field to the YAML example."""
+    """Write a leaf field with its description comment to the YAML example."""
     if desc:
         buf.write(f"{pad}# {_strip_rst(desc)}\n")
     default = _yaml_default(field_info)
-    buf.write(f"{pad}# {name}: {default}\n" if default else f"{pad}# {name}:\n")
+    buf.write(f"{pad}{name}: {default}\n" if default else f"{pad}{name}:\n")
 
 
 def _render_section_table(
@@ -271,7 +271,7 @@ def _render_yaml_fields(
     field_docs: dict[str, str] | None = None,
     indent: int = 0,
 ) -> None:
-    """Render a full commented YAML example, using dotpath for doc lookup."""
+    """Render a full annotated YAML example, using dotpath for doc lookup."""
     if field_docs is None:
         field_docs = {}
     pad = "  " * indent
@@ -308,7 +308,7 @@ def render_yaml_example(
         field_docs: Mapping of ``"section.field"`` dotpaths to descriptions.
 
     Returns:
-        YAML string with commented-out fields and descriptions.
+        YAML string with annotated fields and descriptions.
     """
     buf = io.StringIO()
     _render_yaml_fields(buf, model_class, field_docs=field_docs)

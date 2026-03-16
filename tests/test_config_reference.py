@@ -52,15 +52,18 @@ def test_render_model_tables_with_field_docs() -> None:
     assert "Shutdown timeout in seconds" in result
 
 
-def test_render_yaml_example_produces_commented_yaml() -> None:
-    """YAML example should have commented-out fields."""
+def test_render_yaml_example_produces_annotated_yaml() -> None:
+    """YAML example should have uncommented fields with description comments."""
     result = render_yaml_example(_SampleModel)
 
-    assert "# name:" in result
-    assert "# count: 5" in result
+    assert "name:" in result
+    assert "count: 5" in result
     assert "inner:" in result
-    assert "# timeout: 30" in result
-    assert "# enabled: true" in result
+    assert "timeout: 30" in result
+    assert "enabled: true" in result
+    # Keys should NOT be commented out
+    assert "# name:" not in result
+    assert "# count:" not in result
 
 
 def test_render_yaml_example_with_field_docs() -> None:
