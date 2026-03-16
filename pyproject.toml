@@ -47,10 +47,21 @@ python_classes = ["Test*", "*Tests"]
 python_functions = ["test_*"]
 addopts = "-v --tb=short"
 
+[tool.poetry.group.docs]
+optional = true
+
+[tool.poetry.group.docs.dependencies]
+mkdocs = ">=1.6"
+mkdocs-material = ">=9.5"
+mkdocs-gen-files = ">=0.5"
+mkdocs-literate-nav = ">=0.6"
+mkdocstrings = {version = ">=0.26", extras = ["python"]}
+pydantic = ">=2.6"
+
 [tool.ruff]
 target-version = "py312"
 line-length = 100
-src = ["src", "tests"]
+src = ["src", "tests", "docs"]
 
 [tool.ruff.lint]
 select = [
@@ -74,6 +85,7 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["E402"]
+"docs/**" = ["E402"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["mkdocs_terok"]
