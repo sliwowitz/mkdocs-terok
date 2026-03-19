@@ -74,8 +74,7 @@
     btn.className = "mermaid-zoom-btn"
     btn.textContent = BUTTON_LABEL
     btn.addEventListener("click", () => {
-      const svg = container.querySelector("svg") || container
-      openOverlay(svg.closest("svg") ? svg : svg.querySelector("svg") || svg)
+      openOverlay(container.querySelector("svg") ?? container)
     })
     container.before(btn)
   }
@@ -117,6 +116,6 @@
   if (document.body) {
     startObserver()
   } else {
-    document.addEventListener("DOMContentLoaded", startObserver)
+    document.addEventListener("DOMContentLoaded", startObserver, { once: true })
   }
 })()
