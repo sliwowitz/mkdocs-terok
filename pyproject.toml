@@ -58,6 +58,8 @@ mkdocs-gen-files = ">=0.5"
 mkdocs-literate-nav = ">=0.6"
 mkdocstrings = {version = ">=0.26", extras = ["python"]}
 pydantic = ">=2.6"
+complexipy = ">=5.0"
+tach = ">=0.34"
 
 [tool.ruff]
 target-version = "py312"
