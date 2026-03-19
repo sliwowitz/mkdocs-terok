@@ -88,9 +88,9 @@
 
   // Initial scan once DOM + mermaid rendering settle.
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", () => setTimeout(scan, 500))
+    document.addEventListener("DOMContentLoaded", () => setTimeout(scan, 2000))
   } else {
-    setTimeout(scan, 500)
+    setTimeout(scan, 2000)
   }
 
   // Catch diagrams rendered after initial load (e.g. instant navigation).
@@ -100,7 +100,8 @@
         if (node.nodeType !== 1) continue
         if (
           (node.matches?.(".mermaid, pre.mermaid") && node.querySelector("svg")) ||
-          node.querySelector?.(".mermaid svg, pre.mermaid svg")
+          node.querySelector?.(".mermaid svg, pre.mermaid svg") ||
+          (node.tagName === "svg" && node.parentElement?.matches?.(".mermaid, pre.mermaid"))
         ) {
           setTimeout(scan, 200)
           return
