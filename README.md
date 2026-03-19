@@ -8,8 +8,9 @@ Shared MkDocs documentation generators for terok projects.
 
 Provides reusable modules for generating CI workflow maps, integration test maps,
 code quality reports, API reference pages, and config reference documentation from
-Pydantic models. No runtime dependency on mkdocs or mkdocs-gen-files — the library
-produces strings/results; consumers handle file I/O in thin shims.
+Pydantic models. A built-in `terok` MkDocs plugin drives all generators
+automatically; the generator modules themselves never import MkDocs and can
+also be used standalone via `mkdocs-gen-files` shims.
 
 The quality report module can optionally parse output from
 [scc](https://github.com/boyter/scc),

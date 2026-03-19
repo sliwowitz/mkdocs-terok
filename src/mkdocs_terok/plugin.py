@@ -72,7 +72,7 @@ class TerokPluginConfig(Config):
 class TerokPlugin(BasePlugin[TerokPluginConfig]):
     """MkDocs plugin that drives mkdocs-terok generators."""
 
-    def on_config(self, config: MkDocsConfig) -> MkDocsConfig:
+    def on_config(self, config: MkDocsConfig, **kwargs: object) -> MkDocsConfig:
         """Inject brand CSS and Mermaid zoom JS into the site configuration."""
         css_uri = "_assets/extra.css"
         js_uri = "_assets/mermaid_zoom.js"
@@ -87,7 +87,7 @@ class TerokPlugin(BasePlugin[TerokPluginConfig]):
 
         return config
 
-    def on_files(self, files: Files, /, *, config: MkDocsConfig) -> Files:
+    def on_files(self, files: Files, /, *, config: MkDocsConfig, **kwargs: object) -> Files:
         """Generate virtual files for each enabled generator."""
         if self.config.inject_css:
             files.append(
@@ -154,14 +154,16 @@ class TerokPlugin(BasePlugin[TerokPluginConfig]):
 
         from mkdocs_terok.test_map import TestMapConfig, generate_test_map
 
-        tm_kwargs: dict[str, object] = {
-            "show_markers": self.config.test_map_show_markers,
-            "title": self.config.test_map_title,
-        }
-        if self.config.test_map_integration_dir is not None:
-            tm_kwargs["integration_dir"] = Path(self.config.test_map_integration_dir)
-
-        tm_config = TestMapConfig(**tm_kwargs)  # type: ignore[arg-type]
+        integration_dir = (
+            Path(self.config.test_map_integration_dir)
+            if self.config.test_map_integration_dir is not None
+            else None
+        )
+        tm_config = TestMapConfig(
+            show_markers=self.config.test_map_show_markers,
+            title=self.config.test_map_title,
+            integration_dir=integration_dir,
+        )
         markdown = generate_test_map(config=tm_config)
         files.append(File.generated(config, self.config.test_map_path, content=markdown))
         log.info("Generated %s", self.config.test_map_path)

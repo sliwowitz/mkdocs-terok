@@ -15,13 +15,13 @@ from mkdocs_terok.plugin import TerokPlugin, _build_literate_nav
 # ---------------------------------------------------------------------------
 
 
-def _make_config(**overrides: object) -> MagicMock:
-    """Build a minimal MkDocs config mock."""
-    cfg = MagicMock()
-    cfg.extra_css = list(overrides.get("extra_css", []))
-    cfg.extra_javascript = list(overrides.get("extra_javascript", []))
-    cfg.use_directory_urls = overrides.get("use_directory_urls", True)
-    return cfg
+def _make_config(**overrides: object) -> SimpleNamespace:
+    """Build a minimal MkDocs config stub (stricter than MagicMock)."""
+    return SimpleNamespace(
+        extra_css=list(overrides.get("extra_css", [])),
+        extra_javascript=list(overrides.get("extra_javascript", [])),
+        use_directory_urls=overrides.get("use_directory_urls", True),
+    )
 
 
 def _make_plugin(**overrides: object) -> TerokPlugin:
