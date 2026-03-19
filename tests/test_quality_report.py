@@ -109,7 +109,7 @@ def test_quality_report_config_relative_root(
     [
         pytest.param(False, "", "not available", id="no-treemap-no-codecov"),
         pytest.param(False, "org/repo", "codecov.io", id="codecov-url-fallback"),
-        pytest.param(True, "", 'data="coverage_treemap.svg"', id="bundled-svg"),
+        pytest.param(True, "", 'data="../coverage_treemap.svg"', id="bundled-svg"),
     ],
 )
 def test_coverage_treemap_variants(
