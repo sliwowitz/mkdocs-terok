@@ -25,7 +25,7 @@ gracefully to a warning admonition.
 ```toml
 # In your project's pyproject.toml
 [tool.poetry.group.docs.dependencies]
-mkdocs-terok = {url = "https://github.com/terok-ai/mkdocs-terok/releases/download/v0.2.0/mkdocs_terok-0.2.0-py3-none-any.whl"}
+mkdocs-terok = {url = "https://github.com/terok-ai/mkdocs-terok/releases/download/v0.2.1/mkdocs_terok-0.2.1-py3-none-any.whl"}
 ```
 
 ## License

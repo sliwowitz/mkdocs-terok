@@ -4,7 +4,7 @@ build-backend = "poetry_dynamic_versioning.backend"
 
 [tool.poetry]
 name = "mkdocs-terok"
-version = "0.2.0"
+version = "0.2.1"
 description = "Shared MkDocs documentation generators for terok projects"
 readme = "README.md"
 license = "0BSD"
