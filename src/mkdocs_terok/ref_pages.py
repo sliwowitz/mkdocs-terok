@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: 2026 Jiri Vyskocil
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: 0BSD
 
 """Generate code reference pages via callbacks, without mkdocs_gen_files dependency.
 

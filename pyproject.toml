@@ -7,12 +7,12 @@ name = "mkdocs-terok"
 version = "0.2.0"
 description = "Shared MkDocs documentation generators for terok projects"
 readme = "README.md"
-license = "Apache-2.0"
+license = "0BSD"
 authors = ["terok maintainers"]
 keywords = ["mkdocs", "documentation", "quality-report", "ci-map"]
 classifiers = [
   "Programming Language :: Python :: 3",
-  "License :: OSI Approved :: Apache Software License",
+  "License :: OSI Approved :: BSD License",
   "Framework :: MkDocs",
   "Topic :: Documentation",
 ]

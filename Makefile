@@ -64,4 +64,4 @@ spdx:
 ifndef NAME
 	$(error NAME is required — use the real name of the copyright holder, e.g. make spdx NAME="Real Human Name" FILES="src/mkdocs_terok/new_file.py")
 endif
-	poetry run reuse annotate --template compact --copyright "$(NAME)" --license Apache-2.0 $(FILES)
+	poetry run reuse annotate --template compact --copyright "$(NAME)" --license 0BSD $(FILES)
