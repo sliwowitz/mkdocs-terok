@@ -77,7 +77,7 @@
       const svg = container.querySelector("svg") || container
       openOverlay(svg.closest("svg") ? svg : svg.querySelector("svg") || svg)
     })
-    wrapper.insertBefore(btn, container)
+    container.before(btn)
   }
 
   /** Scan the DOM for rendered mermaid SVGs and attach buttons. */

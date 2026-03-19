@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import subprocess
 from pathlib import Path
 from unittest.mock import patch
 
@@ -142,6 +143,10 @@ def test_coverage_treemap_variants(
 # Graceful degradation — missing external tools
 # ---------------------------------------------------------------------------
 
+_FAIL = subprocess.CompletedProcess(
+    args=("stub",), returncode=1, stdout="", stderr="command not found"
+)
+
 
 def _empty_project(tmp_path: Path) -> QualityReportConfig:
     """Create a minimal project tree with no external tools available."""
@@ -166,7 +171,8 @@ def test_loc_degrades_when_scc_missing(tmp_path: Path) -> None:
 def test_complexity_degrades_when_complexipy_missing(tmp_path: Path) -> None:
     """Complexity section emits a warning when complexipy is absent."""
     cfg = _empty_project(tmp_path)
-    result = _section_complexity(cfg)
+    with patch("mkdocs_terok.quality_report._run", return_value=_FAIL):
+        result = _section_complexity(cfg)
     assert "!!! warning" in result
     assert "complexipy" in result.lower()
 
@@ -174,7 +180,8 @@ def test_complexity_degrades_when_complexipy_missing(tmp_path: Path) -> None:
 def test_dependency_diagram_degrades_when_tach_missing(tmp_path: Path) -> None:
     """Dependency diagram emits a warning when tach is not installed."""
     cfg = _empty_project(tmp_path)
-    result = _section_dependency_diagram(cfg)
+    with patch("mkdocs_terok.quality_report._run", return_value=_FAIL):
+        result = _section_dependency_diagram(cfg)
     assert "!!! warning" in result
     assert "tach" in result.lower()
 
@@ -190,33 +197,36 @@ def test_dependency_report_degrades_without_tach_toml(tmp_path: Path) -> None:
 def test_boundary_check_degrades_when_tach_missing(tmp_path: Path) -> None:
     """Boundary check degrades when tach is not installed."""
     cfg = _empty_project(tmp_path)
-    result = _section_boundary_check(cfg)
-    # Without tach.toml AND with tach failing, we get the failure output
-    assert result.strip()  # produces *something* rather than crashing
+    with patch("mkdocs_terok.quality_report._run", return_value=_FAIL):
+        result = _section_boundary_check(cfg)
+    assert result.strip()
 
 
 def test_dead_code_degrades_when_vulture_missing(tmp_path: Path) -> None:
-    """Dead code section degrades when vulture produces no parseable output."""
+    """Dead code section emits a warning when vulture fails."""
     cfg = _empty_project(tmp_path)
-    # vulture on an empty src dir returns 0 with no output = "no dead code"
-    result = _section_dead_code(cfg)
-    assert "dead code" in result.lower() or "vulture" in result.lower()
+    with patch("mkdocs_terok.quality_report._run", return_value=_FAIL):
+        result = _section_dead_code(cfg)
+    assert "!!! warning" in result
+    assert "vulture" in result.lower()
 
 
 def test_docstring_coverage_degrades_when_tool_missing(tmp_path: Path) -> None:
     """Docstring section degrades when docstr-coverage is not installed."""
     cfg = _empty_project(tmp_path)
-    result = _section_docstring_coverage(cfg)
-    # Produces output (either parsed summary or raw block) without crashing
+    with patch("mkdocs_terok.quality_report._run", return_value=_FAIL):
+        result = _section_docstring_coverage(cfg)
     assert result.strip()
 
 
 def test_full_report_degrades_gracefully(tmp_path: Path) -> None:
     """Full report completes without error when no tools are available."""
     cfg = _empty_project(tmp_path)
-    with patch("shutil.which", return_value=None):
+    with (
+        patch("shutil.which", return_value=None),
+        patch("mkdocs_terok.quality_report._run", return_value=_FAIL),
+    ):
         result = generate_quality_report(cfg)
     assert isinstance(result, QualityReportResult)
     assert "# Code Quality Report" in result.markdown
-    # Report should contain warning admonitions, not crash
     assert "!!! warning" in result.markdown
