@@ -9,6 +9,15 @@ code quality reports, API reference pages, and config reference documentation fr
 Pydantic models. No runtime dependency on mkdocs or mkdocs-gen-files — the library
 produces strings/results; consumers handle file I/O in thin shims.
 
+The quality report module can optionally parse output from
+[scc](https://github.com/boyter/scc),
+[complexipy](https://github.com/rohaquinern/complexipy),
+[tach](https://github.com/gauge-sh/tach),
+[vulture](https://github.com/jendrikseipp/vulture), and
+[docstr-coverage](https://github.com/HunterMcGushion/docstr_coverage).
+When any of these tools is absent, the corresponding report section degrades
+gracefully to a warning admonition.
+
 ## Installation
 
 ```toml

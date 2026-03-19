@@ -15,7 +15,7 @@ The library has **no runtime dependency on MkDocs** — it handles content gener
 | `mkdocs_terok` | Package root — exports `brand_css_path()` |
 | `mkdocs_terok.ref_pages` | Generate API reference pages from source tree |
 | `mkdocs_terok.ci_map` | Parse and visualize GitHub Actions workflows |
-| `mkdocs_terok.quality_report` | Comprehensive code quality analysis (LoC, complexity, dead code, deps) |
+| `mkdocs_terok.quality_report` | Code quality analysis — optionally parses output from [scc](https://github.com/boyter/scc), [complexipy](https://github.com/rohaquinern/complexipy), [tach](https://github.com/gauge-sh/tach), [vulture](https://github.com/jendrikseipp/vulture), and [docstr-coverage](https://github.com/HunterMcGushion/docstr_coverage) (sections degrade gracefully when tools are absent) |
 | `mkdocs_terok.test_map` | Generate test suite maps with marker extraction |
 | `mkdocs_terok.config_reference` | Render Pydantic models as config documentation |
 
