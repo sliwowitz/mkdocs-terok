@@ -31,6 +31,42 @@ def _make_plugin(**overrides: object) -> TerokPlugin:
     return plugin
 
 
+def _fake_file(cfg: object, uri: str, **kw: object) -> SimpleNamespace:
+    """Stub for ``File.generated`` that captures the src_uri."""
+    return SimpleNamespace(src_uri=uri, **kw)
+
+
+def _run_on_files(
+    plugin: TerokPlugin,
+    config: SimpleNamespace,
+    *extra_patches: tuple[str, object],
+) -> list[str]:
+    """Run ``on_files`` with patched ``File.generated`` and return generated URIs.
+
+    *extra_patches* are ``(target, return_value_or_side_effect)`` pairs applied
+    alongside the ``File`` patch.  If the value is callable it is used as
+    ``side_effect``; otherwise as ``return_value``.
+    """
+    files = MagicMock()
+    appended: list[object] = []
+    files.append = appended.append
+
+    cms = [patch("mkdocs_terok.plugin.File")]
+    for target, value in extra_patches:
+        kw = {"side_effect": value} if callable(value) else {"return_value": value}
+        cms.append(patch(target, **kw))
+
+    entered = [cm.__enter__() for cm in cms]
+    try:
+        entered[0].generated = MagicMock(side_effect=_fake_file)
+        plugin.on_files(files, config=config)
+    finally:
+        for cm in reversed(cms):
+            cm.__exit__(None, None, None)
+
+    return [f.src_uri for f in appended if hasattr(f, "src_uri")]
+
+
 # ---------------------------------------------------------------------------
 # Config defaults
 # ---------------------------------------------------------------------------
@@ -99,32 +135,17 @@ class TestOnFilesNoContent:
 
     def test_no_content_files_when_all_disabled(self) -> None:
         """Only asset File objects should appear when generators are off."""
-        plugin = _make_plugin()
-        config = _make_config()
-        files = MagicMock()
-        appended: list[object] = []
-        files.append = appended.append
-
-        with patch("mkdocs_terok.plugin.File") as mock_file:
-            mock_file.generated = MagicMock(side_effect=lambda *a, **kw: SimpleNamespace(**kw))
-            plugin.on_files(files, config=config)
-
+        uris = _run_on_files(_make_plugin(), _make_config())
         # Two asset files only (CSS + JS)
-        assert len(appended) == 2
+        assert len(uris) == 2
 
     def test_no_assets_when_disabled(self) -> None:
         """No files when both assets and generators are disabled."""
-        plugin = _make_plugin(inject_css=False, inject_js=False)
-        config = _make_config()
-        files = MagicMock()
-        appended: list[object] = []
-        files.append = appended.append
-
-        with patch("mkdocs_terok.plugin.File") as mock_file:
-            mock_file.generated = MagicMock(side_effect=lambda *a, **kw: SimpleNamespace(**kw))
-            plugin.on_files(files, config=config)
-
-        assert len(appended) == 0
+        uris = _run_on_files(
+            _make_plugin(inject_css=False, inject_js=False),
+            _make_config(),
+        )
+        assert len(uris) == 0
 
 
 class TestOnFilesCiMap:
@@ -132,114 +153,53 @@ class TestOnFilesCiMap:
 
     def test_generates_ci_map(self) -> None:
         """Enabling ci_map should produce a virtual file at the configured path."""
-        plugin = _make_plugin(ci_map=True)
-        config = _make_config()
-        files = MagicMock()
-        appended: list[object] = []
-        files.append = appended.append
-
-        with (
-            patch("mkdocs_terok.plugin.File") as mock_file,
-            patch("mkdocs_terok.ci_map.generate_ci_map", return_value="# CI Map\n"),
-        ):
-            mock_file.generated = MagicMock(
-                side_effect=lambda cfg, uri, **kw: SimpleNamespace(src_uri=uri, **kw)
-            )
-            plugin.on_files(files, config=config)
-
-        uris = [f.src_uri for f in appended if hasattr(f, "src_uri")]
+        uris = _run_on_files(
+            _make_plugin(ci_map=True),
+            _make_config(),
+            ("mkdocs_terok.ci_map.generate_ci_map", "# CI Map\n"),
+        )
         assert "ci-map.md" in uris
 
 
 class TestOnFilesQualityReport:
     """Quality report generation via on_files."""
 
-    def test_generates_report_with_companion(self) -> None:
-        """Quality report should produce the main file and companion files."""
-        plugin = _make_plugin(quality_report=True)
-        config = _make_config(use_directory_urls=True)
-        files = MagicMock()
-        appended: list[object] = []
-        files.append = appended.append
-
-        mock_result = SimpleNamespace(
-            markdown="# Quality Report\n",
-            companion_files={"coverage_treemap.svg": "<svg/>"},
+    @staticmethod
+    def _mock_result(**overrides: object) -> SimpleNamespace:
+        return SimpleNamespace(
+            markdown=overrides.get("markdown", "# QR\n"),
+            companion_files=overrides.get("companion_files", {}),
         )
 
-        with (
-            patch("mkdocs_terok.plugin.File") as mock_file,
-            patch(
-                "mkdocs_terok.quality_report.generate_quality_report",
-                return_value=mock_result,
-            ),
-        ):
-            mock_file.generated = MagicMock(
-                side_effect=lambda cfg, uri, **kw: SimpleNamespace(src_uri=uri, **kw)
-            )
-            plugin.on_files(files, config=config)
-
-        uris = [f.src_uri for f in appended if hasattr(f, "src_uri")]
+    def test_generates_report_with_companion(self) -> None:
+        """Quality report should produce the main file and companion files."""
+        result = self._mock_result(companion_files={"coverage_treemap.svg": "<svg/>"})
+        uris = _run_on_files(
+            _make_plugin(quality_report=True),
+            _make_config(use_directory_urls=True),
+            ("mkdocs_terok.quality_report.generate_quality_report", result),
+        )
         assert "quality-report.md" in uris
-        # use_directory_urls=True → companion at quality-report/coverage_treemap.svg
         assert "quality-report/coverage_treemap.svg" in uris
 
     def test_companion_path_no_directory_urls(self) -> None:
         """Companion files should land next to the report when use_directory_urls=False."""
-        plugin = _make_plugin(quality_report=True)
-        config = _make_config(use_directory_urls=False)
-        files = MagicMock()
-        appended: list[object] = []
-        files.append = appended.append
-
-        mock_result = SimpleNamespace(
-            markdown="# QR\n",
-            companion_files={"treemap.svg": "<svg/>"},
+        result = self._mock_result(companion_files={"treemap.svg": "<svg/>"})
+        uris = _run_on_files(
+            _make_plugin(quality_report=True),
+            _make_config(use_directory_urls=False),
+            ("mkdocs_terok.quality_report.generate_quality_report", result),
         )
-
-        with (
-            patch("mkdocs_terok.plugin.File") as mock_file,
-            patch(
-                "mkdocs_terok.quality_report.generate_quality_report",
-                return_value=mock_result,
-            ),
-        ):
-            mock_file.generated = MagicMock(
-                side_effect=lambda cfg, uri, **kw: SimpleNamespace(src_uri=uri, **kw)
-            )
-            plugin.on_files(files, config=config)
-
-        uris = [f.src_uri for f in appended if hasattr(f, "src_uri")]
-        # use_directory_urls=False → companion at treemap.svg (same directory as report root)
         assert "treemap.svg" in uris
 
     def test_companion_path_index_md_report(self) -> None:
         """Companion files for index.md reports should use parent dir, not index/."""
-        plugin = _make_plugin(quality_report=True, quality_report_path="reports/index.md")
-        config = _make_config(use_directory_urls=True)
-        files = MagicMock()
-        appended: list[object] = []
-        files.append = appended.append
-
-        mock_result = SimpleNamespace(
-            markdown="# QR\n",
-            companion_files={"treemap.svg": "<svg/>"},
+        result = self._mock_result(companion_files={"treemap.svg": "<svg/>"})
+        uris = _run_on_files(
+            _make_plugin(quality_report=True, quality_report_path="reports/index.md"),
+            _make_config(use_directory_urls=True),
+            ("mkdocs_terok.quality_report.generate_quality_report", result),
         )
-
-        with (
-            patch("mkdocs_terok.plugin.File") as mock_file,
-            patch(
-                "mkdocs_terok.quality_report.generate_quality_report",
-                return_value=mock_result,
-            ),
-        ):
-            mock_file.generated = MagicMock(
-                side_effect=lambda cfg, uri, **kw: SimpleNamespace(src_uri=uri, **kw)
-            )
-            plugin.on_files(files, config=config)
-
-        uris = [f.src_uri for f in appended if hasattr(f, "src_uri")]
-        # index.md → companion should be at reports/treemap.svg, NOT reports/index/treemap.svg
         assert "reports/treemap.svg" in uris
         assert "reports/index/treemap.svg" not in uris
 
@@ -249,22 +209,11 @@ class TestOnFilesTestMap:
 
     def test_generates_test_map(self) -> None:
         """Enabling test_map should produce a virtual file."""
-        plugin = _make_plugin(test_map=True, test_map_integration_dir="tests")
-        config = _make_config()
-        files = MagicMock()
-        appended: list[object] = []
-        files.append = appended.append
-
-        with (
-            patch("mkdocs_terok.plugin.File") as mock_file,
-            patch("mkdocs_terok.test_map.generate_test_map", return_value="# Tests\n"),
-        ):
-            mock_file.generated = MagicMock(
-                side_effect=lambda cfg, uri, **kw: SimpleNamespace(src_uri=uri, **kw)
-            )
-            plugin.on_files(files, config=config)
-
-        uris = [f.src_uri for f in appended if hasattr(f, "src_uri")]
+        uris = _run_on_files(
+            _make_plugin(test_map=True, test_map_integration_dir="tests"),
+            _make_config(),
+            ("mkdocs_terok.test_map.generate_test_map", "# Tests\n"),
+        )
         assert "test-map.md" in uris
 
 
@@ -273,33 +222,21 @@ class TestOnFilesRefPages:
 
     def test_generates_ref_pages_with_summary(self) -> None:
         """Enabling ref_pages should produce doc files and a SUMMARY.md."""
-        plugin = _make_plugin(ref_pages=True)
-        config = _make_config()
-        files = MagicMock()
-        appended: list[object] = []
-        files.append = appended.append
-
         fake_entries = [
             (("mypkg",), "reference/mypkg/index.md"),
             (("mypkg", "core"), "reference/mypkg/core.md"),
         ]
 
-        with (
-            patch("mkdocs_terok.plugin.File") as mock_file,
-            patch(
-                "mkdocs_terok.ref_pages.generate_ref_pages",
-                side_effect=lambda cfg, *, write_file, set_edit_path: (
-                    [write_file(p, f"::: {'.'.join(parts)}") for parts, p in fake_entries],
-                    fake_entries,
-                )[-1],
-            ),
-        ):
-            mock_file.generated = MagicMock(
-                side_effect=lambda cfg, uri, **kw: SimpleNamespace(src_uri=uri, **kw)
-            )
-            plugin.on_files(files, config=config)
+        def fake_generate(cfg, *, write_file, set_edit_path):
+            for parts, p in fake_entries:
+                write_file(p, f"::: {'.'.join(parts)}")
+            return fake_entries
 
-        uris = [f.src_uri for f in appended if hasattr(f, "src_uri")]
+        uris = _run_on_files(
+            _make_plugin(ref_pages=True),
+            _make_config(),
+            ("mkdocs_terok.ref_pages.generate_ref_pages", fake_generate),
+        )
         assert "reference/mypkg/index.md" in uris
         assert "reference/mypkg/core.md" in uris
         assert "reference/SUMMARY.md" in uris

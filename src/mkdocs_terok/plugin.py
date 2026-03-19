@@ -22,6 +22,7 @@ from mkdocs.structure.files import File, Files
 from mkdocs_terok import brand_css_path, mermaid_zoom_js_path
 
 log = logging.getLogger(f"mkdocs.plugins.{__name__}")
+_LOG_GENERATED = "Generated %s"
 
 # ---------------------------------------------------------------------------
 # Plugin configuration schema
@@ -121,7 +122,7 @@ class TerokPlugin(BasePlugin[TerokPluginConfig]):
 
         markdown = generate_ci_map()
         files.append(File.generated(config, self.config.ci_map_path, content=markdown))
-        log.info("Generated %s", self.config.ci_map_path)
+        log.info(_LOG_GENERATED, self.config.ci_map_path)
 
     def _generate_quality_report(self, files: Files, config: MkDocsConfig) -> None:
         """Emit quality report page and companion files (e.g. treemap SVGs)."""
@@ -156,7 +157,7 @@ class TerokPlugin(BasePlugin[TerokPluginConfig]):
                 companion_base = report_posix.parent
             files.append(File.generated(config, str(companion_base / name), content=content))
 
-        log.info("Generated %s", report_path)
+        log.info(_LOG_GENERATED, report_path)
 
     def _generate_test_map(self, files: Files, config: MkDocsConfig) -> None:
         """Emit a virtual test map page from pytest collection."""
@@ -174,15 +175,16 @@ class TerokPlugin(BasePlugin[TerokPluginConfig]):
         )
         markdown = generate_test_map(config=tm_config)
         files.append(File.generated(config, self.config.test_map_path, content=markdown))
-        log.info("Generated %s", self.config.test_map_path)
+        log.info(_LOG_GENERATED, self.config.test_map_path)
 
     def _generate_ref_pages(self, files: Files, config: MkDocsConfig) -> None:
         """Emit API reference stubs and a literate-nav SUMMARY.md."""
         from mkdocs_terok.ref_pages import RefPagesConfig, generate_ref_pages
 
+        output_prefix = self.config.ref_pages_path.rstrip("/")
         rp_config = RefPagesConfig(
             skip_patterns=tuple(self.config.ref_pages_skip_patterns),
-            output_prefix=self.config.ref_pages_path,
+            output_prefix=output_prefix,
         )
 
         def write_file(doc_path: str, content: str) -> None:
