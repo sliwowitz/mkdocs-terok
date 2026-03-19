@@ -199,7 +199,8 @@ def test_boundary_check_degrades_when_tach_missing(tmp_path: Path) -> None:
     cfg = _empty_project(tmp_path)
     with patch("mkdocs_terok.quality_report._run", return_value=_FAIL):
         result = _section_boundary_check(cfg)
-    assert result.strip()
+    assert "```" in result
+    assert "command not found" in result
 
 
 def test_dead_code_degrades_when_vulture_missing(tmp_path: Path) -> None:
@@ -216,7 +217,8 @@ def test_docstring_coverage_degrades_when_tool_missing(tmp_path: Path) -> None:
     cfg = _empty_project(tmp_path)
     with patch("mkdocs_terok.quality_report._run", return_value=_FAIL):
         result = _section_docstring_coverage(cfg)
-    assert result.strip()
+    assert "```" in result
+    assert "command not found" in result
 
 
 def test_full_report_degrades_gracefully(tmp_path: Path) -> None:

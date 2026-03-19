@@ -95,7 +95,7 @@
   }
 
   // Catch diagrams rendered after initial load (e.g. instant navigation).
-  new MutationObserver((mutations) => {
+  const observer = new MutationObserver((mutations) => {
     for (const m of mutations) {
       for (const node of m.addedNodes) {
         if (node.nodeType !== 1) continue
@@ -108,5 +108,15 @@
         }
       }
     }
-  }).observe(document.body, { childList: true, subtree: true })
+  })
+
+  function startObserver() {
+    observer.observe(document.body, { childList: true, subtree: true })
+  }
+
+  if (document.body) {
+    startObserver()
+  } else {
+    document.addEventListener("DOMContentLoaded", startObserver)
+  }
 })()
