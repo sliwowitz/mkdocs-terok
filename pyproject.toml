@@ -23,6 +23,7 @@ packages = [
 
 include = [
   { path = "src/mkdocs_terok/_assets/*.css" },
+  { path = "src/mkdocs_terok/_assets/*.js" },
 ]
 
 [tool.poetry.dependencies]

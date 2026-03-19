@@ -19,3 +19,8 @@ __version__ = "0.0.0"  # managed by poetry-dynamic-versioning
 def brand_css_path() -> Path:
     """Return the filesystem path to the shared brand CSS file."""
     return Path(__file__).parent / "_assets" / "extra.css"
+
+
+def mermaid_zoom_js_path() -> Path:
+    """Return the filesystem path to the Mermaid diagram zoom script."""
+    return Path(__file__).parent / "_assets" / "mermaid_zoom.js"
