@@ -491,6 +491,8 @@ def _section_dependency_diagram(cfg: QualityReportConfig) -> str:
     result = _run(sys.executable, "-m", "tach", "show", "--mermaid", "-o", "-", cwd=cfg.root)
     if result.returncode != 0:
         output = (result.stdout + result.stderr).strip() or "no output"
+        if "No dependency rules" in output:
+            return "No cross-module dependencies to visualize.\n"
         return (
             f"!!! warning\n    tach show failed (exit {result.returncode}).\n\n```\n{output}\n```\n"
         )

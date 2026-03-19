@@ -1,12 +1,13 @@
-[tool.tach]
 exact = true
+source_roots = ["src"]
 
 # Shared MkDocs documentation generators
 [[modules]]
 path = "mkdocs_terok"
 depends_on = []
 
-[[modules.interfaces]]
+[[interfaces]]
+from = ["mkdocs_terok"]
 expose = [
   "brand_css_path",
   "ci_map",
