@@ -72,7 +72,7 @@ class TerokPluginConfig(Config):
 class TerokPlugin(BasePlugin[TerokPluginConfig]):
     """MkDocs plugin that drives mkdocs-terok generators."""
 
-    def on_config(self, config: MkDocsConfig, **kwargs: object) -> MkDocsConfig:
+    def on_config(self, config: MkDocsConfig) -> MkDocsConfig:
         """Inject brand CSS and Mermaid zoom JS into the site configuration."""
         css_uri = "_assets/extra.css"
         js_uri = "_assets/mermaid_zoom.js"
@@ -87,7 +87,7 @@ class TerokPlugin(BasePlugin[TerokPluginConfig]):
 
         return config
 
-    def on_files(self, files: Files, /, *, config: MkDocsConfig, **kwargs: object) -> Files:
+    def on_files(self, files: Files, /, *, config: MkDocsConfig) -> Files:
         """Generate virtual files for each enabled generator."""
         if self.config.inject_css:
             files.append(
