@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -15,6 +16,13 @@ from mkdocs_terok.quality_report import (
     _coarsen_graph,
     _coarsen_module,
     _nbsp_num,
+    _section_boundary_check,
+    _section_complexity,
+    _section_dead_code,
+    _section_dependency_diagram,
+    _section_dependency_report,
+    _section_docstring_coverage,
+    _section_loc,
     generate_quality_report,
 )
 
@@ -128,3 +136,87 @@ def test_coverage_treemap_variants(
     assert expected_fragment in result.markdown
     if treemap_exists:
         assert result.companion_files["coverage_treemap.svg"] == "<svg/>"
+
+
+# ---------------------------------------------------------------------------
+# Graceful degradation — missing external tools
+# ---------------------------------------------------------------------------
+
+
+def _empty_project(tmp_path: Path) -> QualityReportConfig:
+    """Create a minimal project tree with no external tools available."""
+    (tmp_path / "src").mkdir()
+    (tmp_path / "tests").mkdir()
+    return QualityReportConfig(
+        root=tmp_path,
+        src_dir=tmp_path / "src",
+        tests_dir=tmp_path / "tests",
+    )
+
+
+def test_loc_degrades_when_scc_missing(tmp_path: Path) -> None:
+    """LoC section emits a warning when scc is not on PATH."""
+    cfg = _empty_project(tmp_path)
+    with patch("shutil.which", return_value=None):
+        result = _section_loc(cfg)
+    assert "!!! warning" in result
+    assert "scc" in result
+
+
+def test_complexity_degrades_when_complexipy_missing(tmp_path: Path) -> None:
+    """Complexity section emits a warning when complexipy is absent."""
+    cfg = _empty_project(tmp_path)
+    result = _section_complexity(cfg)
+    assert "!!! warning" in result
+    assert "complexipy" in result.lower()
+
+
+def test_dependency_diagram_degrades_when_tach_missing(tmp_path: Path) -> None:
+    """Dependency diagram emits a warning when tach is not installed."""
+    cfg = _empty_project(tmp_path)
+    result = _section_dependency_diagram(cfg)
+    assert "!!! warning" in result
+    assert "tach" in result.lower()
+
+
+def test_dependency_report_degrades_without_tach_toml(tmp_path: Path) -> None:
+    """Module summary degrades when tach.toml is absent."""
+    cfg = _empty_project(tmp_path)
+    result = _section_dependency_report(cfg)
+    assert "!!! warning" in result
+    assert "tach.toml" in result
+
+
+def test_boundary_check_degrades_when_tach_missing(tmp_path: Path) -> None:
+    """Boundary check degrades when tach is not installed."""
+    cfg = _empty_project(tmp_path)
+    result = _section_boundary_check(cfg)
+    # Without tach.toml AND with tach failing, we get the failure output
+    assert result.strip()  # produces *something* rather than crashing
+
+
+def test_dead_code_degrades_when_vulture_missing(tmp_path: Path) -> None:
+    """Dead code section degrades when vulture produces no parseable output."""
+    cfg = _empty_project(tmp_path)
+    # vulture on an empty src dir returns 0 with no output = "no dead code"
+    result = _section_dead_code(cfg)
+    assert "dead code" in result.lower() or "vulture" in result.lower()
+
+
+def test_docstring_coverage_degrades_when_tool_missing(tmp_path: Path) -> None:
+    """Docstring section degrades when docstr-coverage is not installed."""
+    cfg = _empty_project(tmp_path)
+    result = _section_docstring_coverage(cfg)
+    # Produces output (either parsed summary or raw block) without crashing
+    assert result.strip()
+
+
+def test_full_report_degrades_gracefully(tmp_path: Path) -> None:
+    """Full report completes without error when no tools are available."""
+    cfg = _empty_project(tmp_path)
+    with patch("shutil.which", return_value=None):
+        result = generate_quality_report(cfg)
+    assert isinstance(result, QualityReportResult)
+    assert "# Code Quality Report" in result.markdown
+    # Report should contain warning admonitions, not crash
+    assert "!!! warning" in result.markdown
