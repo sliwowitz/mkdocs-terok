@@ -28,4 +28,4 @@ mkdocs-terok = {url = "https://github.com/terok-ai/mkdocs-terok/releases/downloa
 
 ## License
 
-Apache-2.0
+[0BSD](https://opensource.org/license/0bsd) — use freely, no strings attached.
