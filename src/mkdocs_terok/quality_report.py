@@ -593,7 +593,7 @@ def _section_coverage_treemap(cfg: QualityReportConfig) -> tuple[str, dict[str, 
     if resolved_treemap and resolved_treemap.is_file():
         svg = resolved_treemap.read_text(encoding="utf-8")
         companion["coverage_treemap.svg"] = svg
-        src = "../coverage_treemap.svg"
+        src = "coverage_treemap.svg"
     elif cfg.codecov_repo:
         base = f"https://codecov.io/gh/{cfg.codecov_repo}"
         src = f"{base}/graphs/tree.svg"

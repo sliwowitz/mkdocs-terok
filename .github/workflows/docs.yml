@@ -60,6 +60,15 @@ jobs:
       - name: Install dependencies
         run: poetry install --with docs --no-interaction
 
+      - name: Download Codecov treemap SVG
+        run: |
+          mkdir -p reports
+          curl -fsSLo reports/coverage_treemap.svg \
+            "https://codecov.io/gh/terok-ai/mkdocs-terok/graphs/tree.svg?token=${CODECOV_TOKEN}" \
+            || echo '<svg xmlns="http://www.w3.org/2000/svg"><text y="20">Treemap unavailable</text></svg>' > reports/coverage_treemap.svg
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
       - name: Build documentation
         run: poetry run mkdocs build --strict
 

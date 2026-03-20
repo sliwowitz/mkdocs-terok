@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import json
 import subprocess
 from pathlib import Path
 from unittest.mock import patch
@@ -109,7 +110,7 @@ def test_quality_report_config_relative_root(
     [
         pytest.param(False, "", "not available", id="no-treemap-no-codecov"),
         pytest.param(False, "org/repo", "codecov.io", id="codecov-url-fallback"),
-        pytest.param(True, "", 'data="../coverage_treemap.svg"', id="bundled-svg"),
+        pytest.param(True, "", 'data="coverage_treemap.svg"', id="bundled-svg"),
     ],
 )
 def test_coverage_treemap_variants(
@@ -137,6 +138,184 @@ def test_coverage_treemap_variants(
     assert expected_fragment in result.markdown
     if treemap_exists:
         assert result.companion_files["coverage_treemap.svg"] == "<svg/>"
+
+
+# ---------------------------------------------------------------------------
+# Happy paths — successful tool output
+# ---------------------------------------------------------------------------
+
+
+def _ok(stdout: str = "", stderr: str = "") -> subprocess.CompletedProcess[str]:
+    return subprocess.CompletedProcess(args=("stub",), returncode=0, stdout=stdout, stderr=stderr)
+
+
+_SCC_JSON = json.dumps(
+    [
+        {"Name": "Python", "Lines": 500, "Code": 400, "Comment": 50, "Blank": 50, "Count": 10},
+    ]
+)
+
+_SCC_FILE_JSON = json.dumps(
+    [
+        {"Name": "Python", "Lines": 80, "Code": 60, "Comment": 10, "Blank": 10, "Count": 1},
+    ]
+)
+
+
+def test_loc_renders_table_when_scc_available(tmp_path: Path) -> None:
+    """LoC section should render summary table when scc succeeds."""
+    src = tmp_path / "src" / "pkg"
+    src.mkdir(parents=True)
+    (src / "mod.py").write_text("# code")
+    (tmp_path / "tests").mkdir()
+
+    cfg = QualityReportConfig(root=tmp_path, src_dir=tmp_path / "src", tests_dir=tmp_path / "tests")
+    with (
+        patch("shutil.which", return_value="/usr/bin/scc"),
+        patch("mkdocs_terok.quality_report._run", return_value=_ok(stdout=_SCC_JSON)),
+    ):
+        result = _section_loc(cfg)
+
+    assert "!!! warning" not in result
+    assert "Code" in result
+    assert "Comment" in result
+    assert "400" in result or "400" in result.replace("\u00a0", "")
+
+
+_COMPLEXIPY_CACHE = json.dumps(
+    {
+        "functions": [
+            {"function_name": "foo", "path": "pkg/mod.py", "complexity": 5},
+            {"function_name": "bar", "path": "pkg/mod.py", "complexity": 20},
+            {"function_name": "baz", "path": "pkg/mod.py", "complexity": 3},
+        ]
+    }
+)
+
+
+def test_complexity_renders_histogram_when_complexipy_succeeds(tmp_path: Path) -> None:
+    """Complexity section should show histogram and top offenders."""
+    (tmp_path / "src").mkdir()
+    (tmp_path / "tests").mkdir()
+    cache_dir = tmp_path / ".complexipy_cache"
+    cache_dir.mkdir()
+    (cache_dir / "result.json").write_text(_COMPLEXIPY_CACHE)
+
+    cfg = QualityReportConfig(root=tmp_path, src_dir=tmp_path / "src", tests_dir=tmp_path / "tests")
+    with patch("mkdocs_terok.quality_report._run", return_value=_ok()):
+        result = _section_complexity(cfg)
+
+    assert "!!! warning" not in result
+    assert "Functions analyzed" in result
+    assert "Median complexity" in result
+    assert "█" in result
+    # bar with complexity 20 exceeds default threshold of 15
+    assert "`bar`" in result
+    assert "exceeding threshold" in result
+
+
+def test_dead_code_renders_table_when_vulture_finds_issues(tmp_path: Path) -> None:
+    """Dead code section should render a table when vulture reports findings."""
+    (tmp_path / "src").mkdir()
+    (tmp_path / "tests").mkdir()
+    vulture_output = (
+        "src/pkg/mod.py:10: unused function 'old_func' (80% confidence)\n"
+        "src/pkg/mod.py:25: unused variable 'x' (90% confidence)\n"
+    )
+    cfg = QualityReportConfig(root=tmp_path, src_dir=tmp_path / "src", tests_dir=tmp_path / "tests")
+    with patch("mkdocs_terok.quality_report._run", return_value=_ok(stdout=vulture_output)):
+        result = _section_dead_code(cfg)
+
+    assert "!!! warning" not in result
+    assert "Confidence" in result
+    assert "80% confidence" in result
+    assert "`src/pkg/mod.py:10`" in result
+
+
+def test_dead_code_clean_when_vulture_finds_nothing(tmp_path: Path) -> None:
+    """Dead code section should report clean when vulture finds nothing."""
+    (tmp_path / "src").mkdir()
+    (tmp_path / "tests").mkdir()
+    cfg = QualityReportConfig(root=tmp_path, src_dir=tmp_path / "src", tests_dir=tmp_path / "tests")
+    with patch("mkdocs_terok.quality_report._run", return_value=_ok()):
+        result = _section_dead_code(cfg)
+
+    assert "No dead code found" in result
+
+
+def test_dependency_diagram_renders_mermaid_when_tach_succeeds(tmp_path: Path) -> None:
+    """Dependency diagram should embed mermaid when tach show succeeds."""
+    (tmp_path / "src").mkdir()
+    (tmp_path / "tests").mkdir()
+    tach_mermaid = "graph TD\n    pkg.core --> pkg.utils\n    pkg.api --> pkg.core"
+    cfg = QualityReportConfig(root=tmp_path, src_dir=tmp_path / "src", tests_dir=tmp_path / "tests")
+    with patch("mkdocs_terok.quality_report._run", return_value=_ok(stdout=tach_mermaid)):
+        result = _section_dependency_diagram(cfg)
+
+    assert "```mermaid" in result
+    assert "pkg.core --> pkg.utils" in result
+
+
+def test_dependency_report_renders_modules_from_tach_toml(tmp_path: Path) -> None:
+    """Module summary should render a table from tach.toml."""
+    (tmp_path / "src").mkdir()
+    (tmp_path / "tests").mkdir()
+    (tmp_path / "tach.toml").write_text(
+        'exact = true\nsource_roots = ["src"]\n\n'
+        "# Core library\n"
+        "[[modules]]\n"
+        'path = "pkg.core"\n'
+        "depends_on = []\n\n"
+        "# HTTP layer\n"
+        "[[modules]]\n"
+        'path = "pkg.api"\n'
+        'depends_on = [{ path = "pkg.core" }]\n'
+    )
+    cfg = QualityReportConfig(root=tmp_path, src_dir=tmp_path / "src", tests_dir=tmp_path / "tests")
+    result = _section_dependency_report(cfg)
+
+    assert "!!! warning" not in result
+    assert "`pkg.core`" in result
+    assert "`pkg.api`" in result
+    assert "Core library" in result
+    assert "2 modules" in result
+
+
+def test_boundary_check_passes_when_tach_succeeds(tmp_path: Path) -> None:
+    """Boundary check should report success when tach check exits 0."""
+    (tmp_path / "src").mkdir()
+    (tmp_path / "tests").mkdir()
+    (tmp_path / "tach.toml").write_text(
+        'exact = true\nsource_roots = ["src"]\n\n[[modules]]\npath = "pkg"\ndepends_on = []\n'
+    )
+    cfg = QualityReportConfig(root=tmp_path, src_dir=tmp_path / "src", tests_dir=tmp_path / "tests")
+    with patch(
+        "mkdocs_terok.quality_report._run", return_value=_ok(stdout="✅ All modules validated!")
+    ):
+        result = _section_boundary_check(cfg)
+
+    assert "all boundaries validated" in result
+    assert "1 modules" in result
+
+
+def test_docstring_coverage_renders_summary(tmp_path: Path) -> None:
+    """Docstring section should extract summary lines from docstr-coverage."""
+    (tmp_path / "src").mkdir()
+    (tmp_path / "tests").mkdir()
+    docstr_output = (
+        "File: src/pkg/mod.py\n"
+        " Needed: 10; Found: 9; Missing: 1\n"
+        "Overall statistics:\n"
+        "Needed: 10\n"
+        "Total coverage: 90.0%\n"
+        "Grade: Very good\n"
+    )
+    cfg = QualityReportConfig(root=tmp_path, src_dir=tmp_path / "src", tests_dir=tmp_path / "tests")
+    with patch("mkdocs_terok.quality_report._run", return_value=_ok(stdout=docstr_output)):
+        result = _section_docstring_coverage(cfg)
+
+    assert "Total coverage: 90.0%" in result
+    assert "Grade: Very good" in result
 
 
 # ---------------------------------------------------------------------------

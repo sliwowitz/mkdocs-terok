@@ -22,6 +22,8 @@ plugins:
   - terok:
       ci_map: true
       quality_report: true
+      quality_report_codecov_treemap_path: reports/coverage_treemap.svg
+      quality_report_codecov_repo: terok-ai/mkdocs-terok
       test_map: true
       test_map_show_markers: false
       test_map_title: "Test Suite Map"

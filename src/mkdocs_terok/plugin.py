@@ -149,6 +149,9 @@ class TerokPlugin(BasePlugin[TerokPluginConfig]):
         report_path = self.config.quality_report_path
         files.append(File.generated(config, report_path, content=result.markdown))
 
+        # Place companion files (e.g. treemap SVG) as siblings of the rendered page.
+        # The generator references them by bare filename; the plugin places them so
+        # that the bare name resolves correctly regardless of use_directory_urls.
         report_posix = PurePosixPath(report_path)
         for name, content in result.companion_files.items():
             if config.use_directory_urls and report_posix.stem != "index":
