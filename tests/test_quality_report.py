@@ -69,7 +69,7 @@ def test_generate_quality_report_returns_result(tmp_path: Path) -> None:
     result = generate_quality_report(config)
 
     assert isinstance(result, QualityReportResult)
-    assert "# Code Quality Report" in result.markdown
+    assert "# Code Metrics" in result.markdown
     assert "Generated:" in result.markdown
 
 
@@ -409,5 +409,5 @@ def test_full_report_degrades_gracefully(tmp_path: Path) -> None:
     ):
         result = generate_quality_report(cfg)
     assert isinstance(result, QualityReportResult)
-    assert "# Code Quality Report" in result.markdown
+    assert "# Code Metrics" in result.markdown
     assert "!!! warning" in result.markdown

@@ -658,7 +658,7 @@ def generate_quality_report(config: QualityReportConfig | None = None) -> Qualit
     coverage_md, companion = _section_coverage_treemap(config)
 
     sections = [
-        "# Code Quality Report\n\n",
+        "# Code Metrics\n\n",
         f"*Generated: {now}*\n\n",
         "---\n\n",
         "## Lines of Code\n\n",
