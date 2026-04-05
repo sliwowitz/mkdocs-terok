@@ -9,27 +9,35 @@
 ;(() => {
   const BUTTON_LABEL = "\u2922 Enlarge"
 
-  /** Build the overlay element (singleton, appended on first use). */
-  function createOverlay() {
-    const overlay = document.createElement("div")
-    overlay.className = "mermaid-zoom-overlay"
-    overlay.addEventListener("click", (e) => {
-      if (e.target === overlay) closeOverlay(overlay)
+  // ── Main action ────────────────────────────────────────
+
+  /** Scan the DOM for rendered mermaid SVGs and attach buttons. */
+  function scan() {
+    document.querySelectorAll("pre.mermaid, .mermaid").forEach((el) => {
+      if (el.querySelector("svg") || el.tagName === "SVG") attachButton(el)
     })
-
-    const close = document.createElement("button")
-    close.className = "mermaid-zoom-close"
-    close.textContent = "\u2715"
-    close.title = "Close"
-    close.addEventListener("click", () => closeOverlay(overlay))
-
-    const viewport = document.createElement("div")
-    viewport.className = "mermaid-zoom-viewport"
-
-    overlay.append(close, viewport)
-    document.body.appendChild(overlay)
-    return overlay
   }
+
+  /** Wrap a rendered mermaid container and inject the enlarge button. */
+  function attachButton(container) {
+    if (container.dataset.zoomAttached) return
+    container.dataset.zoomAttached = "1"
+
+    const wrapper = document.createElement("div")
+    wrapper.className = "mermaid-zoom-wrapper"
+    container.parentNode.insertBefore(wrapper, container)
+    wrapper.appendChild(container)
+
+    const btn = document.createElement("button")
+    btn.className = "mermaid-zoom-btn"
+    btn.textContent = BUTTON_LABEL
+    btn.addEventListener("click", () => {
+      openOverlay(container.querySelector("svg") ?? container)
+    })
+    container.before(btn)
+  }
+
+  // ── Overlay mechanics ───���──────────────────────────────
 
   function openOverlay(svgSource) {
     const overlay =
@@ -60,31 +68,29 @@
     }
   }
 
-  /** Wrap a rendered mermaid container and inject the enlarge button. */
-  function attachButton(container) {
-    if (container.dataset.zoomAttached) return
-    container.dataset.zoomAttached = "1"
-
-    const wrapper = document.createElement("div")
-    wrapper.className = "mermaid-zoom-wrapper"
-    container.parentNode.insertBefore(wrapper, container)
-    wrapper.appendChild(container)
-
-    const btn = document.createElement("button")
-    btn.className = "mermaid-zoom-btn"
-    btn.textContent = BUTTON_LABEL
-    btn.addEventListener("click", () => {
-      openOverlay(container.querySelector("svg") ?? container)
+  /** Build the overlay element (singleton, appended on first use). */
+  function createOverlay() {
+    const overlay = document.createElement("div")
+    overlay.className = "mermaid-zoom-overlay"
+    overlay.addEventListener("click", (e) => {
+      if (e.target === overlay) closeOverlay(overlay)
     })
-    container.before(btn)
+
+    const close = document.createElement("button")
+    close.className = "mermaid-zoom-close"
+    close.textContent = "\u2715"
+    close.title = "Close"
+    close.addEventListener("click", () => closeOverlay(overlay))
+
+    const viewport = document.createElement("div")
+    viewport.className = "mermaid-zoom-viewport"
+
+    overlay.append(close, viewport)
+    document.body.appendChild(overlay)
+    return overlay
   }
 
-  /** Scan the DOM for rendered mermaid SVGs and attach buttons. */
-  function scan() {
-    document.querySelectorAll("pre.mermaid, .mermaid").forEach((el) => {
-      if (el.querySelector("svg") || el.tagName === "SVG") attachButton(el)
-    })
-  }
+  // ── Initialization ─────────────────────────────────────
 
   // Initial scan once DOM + mermaid rendering settle.
   if (document.readyState === "loading") {
