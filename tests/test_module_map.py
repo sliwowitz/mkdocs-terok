@@ -184,7 +184,7 @@ def test_group_by_tach_orders_by_layer(tmp_path: Path, tach_config: _TachConfig)
         (d / f"{subdir}_mod.py").write_text(f'"""Module in {subdir}."""\n')
 
     py_files = _collect_py_files(pkg)
-    layers = _group_by_tach(py_files, pkg, src, tach_config)
+    layers = _group_by_tach(py_files, src, tach_config)
     layer_names = [name for name, _files in layers]
 
     assert layer_names == ["common", "core", "support", "cli"]

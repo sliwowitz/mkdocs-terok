@@ -37,7 +37,7 @@
     container.before(btn)
   }
 
-  // ── Overlay mechanics ───���──────────────────────────────
+  // ── Overlay mechanics ──────────────────────────────────
 
   function openOverlay(svgSource) {
     const overlay =

@@ -74,7 +74,7 @@ def _discover_layers(
     py_files = _collect_py_files(pkg_root)
     tach = _read_tach_config(src_root)
     if tach:
-        return _group_by_tach(py_files, pkg_root, src_root, tach)
+        return _group_by_tach(py_files, src_root, tach)
     return _group_by_directory(py_files, pkg_root)
 
 
@@ -145,7 +145,6 @@ def _parse_tach(path: Path) -> _TachConfig | None:
 
 def _group_by_tach(
     py_files: list[Path],
-    pkg_root: Path,
     src_root: Path,
     tach: _TachConfig,
 ) -> list[tuple[str, list[Path]]]:
