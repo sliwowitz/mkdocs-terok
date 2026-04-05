@@ -246,6 +246,19 @@ class TestOnFilesTestMap:
         assert "test-map.md" in uris
 
 
+class TestOnFilesModuleMap:
+    """Module map generation via on_files."""
+
+    def test_generates_module_map(self) -> None:
+        """Enabling module_map should produce a virtual file."""
+        uris = _run_on_files(
+            _make_plugin(module_map=True, module_map_title="Mod Map"),
+            _make_config(),
+            ("mkdocs_terok.module_map.generate_module_map", "# Mod Map\n"),
+        )
+        assert "module-map.md" in uris
+
+
 class TestOnFilesRefPages:
     """Reference page generation via on_files."""
 

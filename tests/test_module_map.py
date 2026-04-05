@@ -19,6 +19,8 @@ from mkdocs_terok.module_map import (
     _group_by_directory,
     _group_by_tach,
     _module_label,
+    _parse_tach,
+    _render_layer,
     _render_module,
     _TachConfig,
     generate_module_map,
@@ -48,6 +50,12 @@ def test_detect_package_root_single_package(tmp_path: Path) -> None:
     pkg.mkdir(parents=True)
     (pkg / "__init__.py").touch()
     assert _detect_package_root(tmp_path / "src") == pkg
+
+
+def test_detect_package_root_nonexistent_dir() -> None:
+    """Non-existent src_root is returned as-is."""
+    missing = Path("/nonexistent/src")
+    assert _detect_package_root(missing) == missing
 
 
 def test_detect_package_root_no_package(tmp_path: Path) -> None:
@@ -174,6 +182,56 @@ def test_file_to_layer_unmatched_returns_none(tach_config: _TachConfig) -> None:
     assert _file_to_layer(src / "otherpkg" / "foo.py", src, tach_config) is None
 
 
+def test_parse_tach_valid(tmp_path: Path) -> None:
+    """Valid tach.toml is parsed into a _TachConfig."""
+    tach = tmp_path / "tach.toml"
+    tach.write_text(
+        dedent("""\
+        layers = ["cli", "core"]
+
+        [[modules]]
+        path = "pkg.core"
+        layer = "core"
+    """)
+    )
+    result = _parse_tach(tach)
+    assert result is not None
+    assert result.layers == ["cli", "core"]
+    assert result.module_layers == {"pkg.core": "core"}
+
+
+def test_parse_tach_no_layers(tmp_path: Path) -> None:
+    """tach.toml without layers key returns None."""
+    tach = tmp_path / "tach.toml"
+    tach.write_text("exact = true\n")
+    assert _parse_tach(tach) is None
+
+
+def test_parse_tach_invalid_toml(tmp_path: Path) -> None:
+    """Malformed TOML returns None without crashing."""
+    tach = tmp_path / "tach.toml"
+    tach.write_text("{{invalid toml}}")
+    assert _parse_tach(tach) is None
+
+
+def test_group_by_tach_unassigned_files(tmp_path: Path) -> None:
+    """Files not matching any tach module go into (other) group."""
+    src = tmp_path / "src"
+    pkg = src / "otherpkg"
+    pkg.mkdir(parents=True)
+    (pkg / "mystery.py").write_text('"""Mystery module."""\n')
+
+    tach = _TachConfig(
+        layers=["core"],
+        module_layers={"mypkg.core": "core"},
+    )
+    py_files = _collect_py_files(pkg)
+    layers = _group_by_tach(py_files, src, tach)
+    layer_names = [name for name, _files in layers]
+
+    assert "(other)" in layer_names
+
+
 def test_group_by_tach_orders_by_layer(tmp_path: Path, tach_config: _TachConfig) -> None:
     """Files are grouped and ordered according to the tach layers list."""
     src = tmp_path / "src"
@@ -219,6 +277,33 @@ def test_render_module_with_class(tmp_path: Path) -> None:
     assert "> Processes all the things." in result
 
 
+def test_render_module_class_without_docstring(tmp_path: Path) -> None:
+    """Classes without docstrings are skipped in rendering."""
+    src = tmp_path / "sparse.py"
+    src.write_text(
+        dedent('''\
+        """Module doc."""
+
+        class Documented:
+            """Has a docstring."""
+
+        class Bare:
+            pass
+    ''')
+    )
+    result = _render_module(tmp_path, src)
+    assert result is not None
+    assert "**Documented**" in result
+    assert "Bare" not in result
+
+
+def test_render_layer_empty_when_no_docs(tmp_path: Path) -> None:
+    """Layer with only undocumented files returns empty list."""
+    src = tmp_path / "bare.py"
+    src.write_text("x = 1\n")
+    assert _render_layer(tmp_path, "empty_layer", [src]) == []
+
+
 def test_render_module_no_docs(tmp_path: Path) -> None:
     """Modules without any docstrings return None."""
     src = tmp_path / "bare.py"
@@ -248,3 +333,39 @@ def test_generate_module_map_produces_markdown(
     assert "*Generated:" in result
     assert "### `core.engine`" in result
     assert "Core engine module." in result
+
+
+def test_generate_module_map_with_tach(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """When tach.toml is present, layers are ordered by its layers list."""
+    pkg = tmp_path / "src" / "mypkg"
+    for sub in ("common", "core"):
+        d = pkg / sub
+        d.mkdir(parents=True)
+        (d / "__init__.py").touch()
+        (d / f"{sub}_mod.py").write_text(f'"""The {sub} module."""\n')
+    (pkg / "__init__.py").touch()
+
+    tach = tmp_path / "tach.toml"
+    tach.write_text(
+        dedent("""\
+        source_roots = ["src"]
+        layers = ["core", "common"]
+
+        [[modules]]
+        path = "mypkg.common"
+        layer = "common"
+
+        [[modules]]
+        path = "mypkg.core"
+        layer = "core"
+    """)
+    )
+
+    monkeypatch.chdir(tmp_path)
+    config = ModuleMapConfig(src_root=tmp_path / "src", title="Tach Map")
+    result = generate_module_map(config)
+
+    # tach layers are ["core", "common"], reversed → common first
+    common_pos = result.index("## common")
+    core_pos = result.index("## core")
+    assert common_pos < core_pos
