@@ -47,152 +47,7 @@ class TestMapConfig:
         return self.root / "tests" / "integration"
 
 
-def collect_tests(*, config: TestMapConfig | None = None) -> list[str]:
-    """Run pytest --collect-only and return the list of test node IDs.
-
-    Args:
-        config: Test map configuration. Uses defaults if ``None``.
-
-    Raises:
-        RuntimeError: If pytest collection fails (non-zero exit code).
-    """
-    if config is None:
-        config = TestMapConfig()
-    result = subprocess.run(
-        [
-            sys.executable,
-            "-m",
-            "pytest",
-            "--collect-only",
-            "-qq",
-            "-p",
-            "no:tach",
-            str(config.resolved_integration_dir),
-        ],
-        capture_output=True,
-        text=True,
-        cwd=config.root,
-        timeout=60,
-        check=False,
-    )
-    if result.returncode != 0:
-        msg = (result.stdout + result.stderr).strip()
-        raise RuntimeError(f"pytest collection failed (exit {result.returncode}):\n{msg}")
-    return [line.strip() for line in result.stdout.splitlines() if "::" in line]
-
-
-def _extract_markers(test_file: Path) -> dict[str, list[str]]:
-    """Extract pytest markers from a test file, keyed by class or module.
-
-    Buffers decorators until the next ``class`` declaration so markers
-    above a class are correctly assigned to that class, not the previous one.
-    """
-    markers: dict[str, list[str]] = defaultdict(list)
-    current_class = "_module"
-    pending: list[str] = []
-    if not test_file.is_file():
-        return markers
-    for line in test_file.read_text().splitlines():
-        marker_match = re.match(r"^@pytest\.mark\.(\w+)", line.strip())
-        if marker_match:
-            pending.append(marker_match.group(1))
-            continue
-        class_match = re.match(r"^class (\w+)", line)
-        if class_match:
-            current_class = class_match.group(1)
-            markers[current_class].extend(pending)
-            pending.clear()
-        elif pending and not line.strip().startswith("@"):
-            markers[current_class].extend(pending)
-            pending.clear()
-    if pending:
-        markers[current_class].extend(pending)
-    return markers
-
-
-def _ci_tier(env_markers: set[str]) -> str:
-    """Derive the CI tier from a set of environment markers.
-
-    Returns the most restrictive tier (podman > network > host).
-    """
-    if "needs_podman" in env_markers:
-        return "podman"
-    if "needs_internet" in env_markers:
-        return "network"
-    return "host"
-
-
-def _group_by_directory(
-    test_ids: list[str], integration_dir: Path | None = None
-) -> dict[str, list[str]]:
-    """Group test IDs by their integration test subdirectory."""
-    # Build candidate prefixes: the integration dir path (absolute or relative) + fallback
-    prefixes: list[str] = []
-    if integration_dir is not None:
-        prefixes.append(f"{integration_dir}/".replace("\\", "/"))
-        # Also try the relative form (pytest emits relative paths)
-        try:
-            rel = integration_dir.relative_to(Path.cwd())
-            prefixes.append(f"{rel}/".replace("\\", "/"))
-        except ValueError:
-            pass
-    prefixes.append("tests/integration/")
-
-    groups: dict[str, list[str]] = defaultdict(list)
-    for tid in test_ids:
-        file_path = tid.split("::")[0]
-        rel = file_path
-        for pfx in prefixes:
-            if pfx in file_path:
-                rel = file_path.replace(pfx, "", 1)
-                break
-        subdir = rel.split("/")[0] if "/" in rel else "(root)"
-        groups[subdir].append(tid)
-    return groups
-
-
-def _sorted_dirs(groups: dict[str, list[str]], dir_order: Sequence[str]) -> list[str]:
-    """Return directory names in canonical order, unknown dirs appended alphabetically."""
-    known = [d for d in dir_order if d in groups]
-    return known + sorted(d for d in groups if d not in dir_order)
-
-
-def _dir_description(subdir: str, integration_dir: Path) -> str:
-    """Read the README.md description for a test subdirectory."""
-    readme = integration_dir / subdir / "README.md"
-    if not readme.is_file():
-        return ""
-    lines = readme.read_text().strip().splitlines()
-    return " ".join(ln.strip() for ln in lines[1:] if ln.strip())
-
-
-def _test_row(
-    tid: str,
-    marker_cache: dict[str, dict[str, list[str]]],
-    root: Path,
-    *,
-    show_markers: bool,
-) -> str:
-    """Format a single test ID as a Markdown table row."""
-    parts = tid.split("::")
-    file_path = parts[0]
-    class_name = parts[1] if len(parts) > 2 else ""
-    test_name = parts[-1]
-
-    if not show_markers:
-        return f"| `{test_name}` | `{class_name}` | `{file_path}` |"
-
-    if file_path not in marker_cache:
-        marker_cache[file_path] = _extract_markers(root / file_path)
-    file_markers = marker_cache[file_path]
-
-    all_markers = set(file_markers.get("_module", []))
-    if class_name:
-        all_markers.update(file_markers.get(class_name, []))
-    env_markers = sorted(m for m in all_markers if m.startswith("needs_"))
-    marker_str = ", ".join(f"`{m}`" for m in env_markers) if env_markers else ""
-    tier = _ci_tier(all_markers)
-    return f"| `{test_name}` | `{class_name}` | {tier} | {marker_str} |"
+# ── Entry point ─────────────────────────────────────────
 
 
 def generate_test_map(
@@ -244,3 +99,160 @@ def generate_test_map(
         lines.append("\n")
 
     return "".join(lines)
+
+
+# ── Test collection ─────────────────────────────────────
+
+
+def collect_tests(*, config: TestMapConfig | None = None) -> list[str]:
+    """Run pytest --collect-only and return the list of test node IDs.
+
+    Args:
+        config: Test map configuration. Uses defaults if ``None``.
+
+    Raises:
+        RuntimeError: If pytest collection fails (non-zero exit code).
+    """
+    if config is None:
+        config = TestMapConfig()
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "pytest",
+            "--collect-only",
+            "-qq",
+            "-p",
+            "no:tach",
+            str(config.resolved_integration_dir),
+        ],
+        capture_output=True,
+        text=True,
+        cwd=config.root,
+        timeout=60,
+        check=False,
+    )
+    if result.returncode != 0:
+        msg = (result.stdout + result.stderr).strip()
+        raise RuntimeError(f"pytest collection failed (exit {result.returncode}):\n{msg}")
+    return [line.strip() for line in result.stdout.splitlines() if "::" in line]
+
+
+# ── Grouping and sorting ───────────────────────────────
+
+
+def _group_by_directory(
+    test_ids: list[str], integration_dir: Path | None = None
+) -> dict[str, list[str]]:
+    """Group test IDs by their integration test subdirectory."""
+    # Build candidate prefixes: the integration dir path (absolute or relative) + fallback
+    prefixes: list[str] = []
+    if integration_dir is not None:
+        prefixes.append(f"{integration_dir}/".replace("\\", "/"))
+        # Also try the relative form (pytest emits relative paths)
+        try:
+            rel = integration_dir.relative_to(Path.cwd())
+            prefixes.append(f"{rel}/".replace("\\", "/"))
+        except ValueError:
+            pass
+    prefixes.append("tests/integration/")
+
+    groups: dict[str, list[str]] = defaultdict(list)
+    for tid in test_ids:
+        file_path = tid.split("::")[0]
+        rel = file_path
+        for pfx in prefixes:
+            if pfx in file_path:
+                rel = file_path.replace(pfx, "", 1)
+                break
+        subdir = rel.split("/")[0] if "/" in rel else "(root)"
+        groups[subdir].append(tid)
+    return groups
+
+
+def _sorted_dirs(groups: dict[str, list[str]], dir_order: Sequence[str]) -> list[str]:
+    """Return directory names in canonical order, unknown dirs appended alphabetically."""
+    known = [d for d in dir_order if d in groups]
+    return known + sorted(d for d in groups if d not in dir_order)
+
+
+def _dir_description(subdir: str, integration_dir: Path) -> str:
+    """Read the README.md description for a test subdirectory."""
+    readme = integration_dir / subdir / "README.md"
+    if not readme.is_file():
+        return ""
+    lines = readme.read_text().strip().splitlines()
+    return " ".join(ln.strip() for ln in lines[1:] if ln.strip())
+
+
+# ── Row formatting ──────────────────────────────────────
+
+
+def _test_row(
+    tid: str,
+    marker_cache: dict[str, dict[str, list[str]]],
+    root: Path,
+    *,
+    show_markers: bool,
+) -> str:
+    """Format a single test ID as a Markdown table row."""
+    parts = tid.split("::")
+    file_path = parts[0]
+    class_name = parts[1] if len(parts) > 2 else ""
+    test_name = parts[-1]
+
+    if not show_markers:
+        return f"| `{test_name}` | `{class_name}` | `{file_path}` |"
+
+    if file_path not in marker_cache:
+        marker_cache[file_path] = _extract_markers(root / file_path)
+    file_markers = marker_cache[file_path]
+
+    all_markers = set(file_markers.get("_module", []))
+    if class_name:
+        all_markers.update(file_markers.get(class_name, []))
+    env_markers = sorted(m for m in all_markers if m.startswith("needs_"))
+    marker_str = ", ".join(f"`{m}`" for m in env_markers) if env_markers else ""
+    tier = _ci_tier(all_markers)
+    return f"| `{test_name}` | `{class_name}` | {tier} | {marker_str} |"
+
+
+def _extract_markers(test_file: Path) -> dict[str, list[str]]:
+    """Extract pytest markers from a test file, keyed by class or module.
+
+    Buffers decorators until the next ``class`` declaration so markers
+    above a class are correctly assigned to that class, not the previous one.
+    """
+    markers: dict[str, list[str]] = defaultdict(list)
+    current_class = "_module"
+    pending: list[str] = []
+    if not test_file.is_file():
+        return markers
+    for line in test_file.read_text().splitlines():
+        marker_match = re.match(r"^@pytest\.mark\.(\w+)", line.strip())
+        if marker_match:
+            pending.append(marker_match.group(1))
+            continue
+        class_match = re.match(r"^class (\w+)", line)
+        if class_match:
+            current_class = class_match.group(1)
+            markers[current_class].extend(pending)
+            pending.clear()
+        elif pending and not line.strip().startswith("@"):
+            markers[current_class].extend(pending)
+            pending.clear()
+    if pending:
+        markers[current_class].extend(pending)
+    return markers
+
+
+def _ci_tier(env_markers: set[str]) -> str:
+    """Derive the CI tier from a set of environment markers.
+
+    Returns the most restrictive tier (podman > network > host).
+    """
+    if "needs_podman" in env_markers:
+        return "podman"
+    if "needs_internet" in env_markers:
+        return "network"
+    return "host"

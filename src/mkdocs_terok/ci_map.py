@@ -14,49 +14,58 @@ from pathlib import Path
 
 import yaml
 
-
-def _artifact_names(steps: object, prefix: str) -> tuple[str, ...]:
-    """Collect upload/download artifact names from a list of steps."""
-    if not isinstance(steps, list):
-        return ()
-    names: list[str] = []
-    for step in steps:
-        if not isinstance(step, dict):
-            continue
-        uses = step.get("uses")
-        if not isinstance(uses, str) or not uses.startswith(prefix):
-            continue
-        with_section = step.get("with", {})
-        if isinstance(with_section, dict):
-            name = with_section.get("name")
-            names.append(str(name) if name else "(all artifacts)")
-    return tuple(names)
+# ── Entry point ─────────────────────────────────────────
 
 
-def _trigger_summary(data: dict[object, object]) -> str:
-    """Render the top-level ``on`` section as a compact string."""
-    on_section = data.get("on", data.get(True, {}))
-    if isinstance(on_section, str):
-        return f"`{on_section}`"
-    if isinstance(on_section, list):
-        return ", ".join(f"`{item}`" for item in on_section)
-    if not isinstance(on_section, dict):
-        return "—"
+def generate_ci_map(
+    workflows: list[dict[str, object]] | None = None,
+    *,
+    workflows_dir: Path | None = None,
+) -> str:
+    """Generate the Markdown CI map.
 
-    parts: list[str] = []
-    for name, value in on_section.items():
-        suffix = ""
-        if isinstance(value, dict):
-            if name in {"push", "pull_request", "pull_request_target"}:
-                branches = value.get("branches")
-                if isinstance(branches, list) and branches:
-                    suffix = f"({', '.join(str(branch) for branch in branches)})"
-            elif name == "workflow_run":
-                workflows = value.get("workflows")
-                if isinstance(workflows, list) and workflows:
-                    suffix = f"({', '.join(str(workflow) for workflow in workflows)})"
-        parts.append(f"`{name}{suffix}`")
-    return ", ".join(parts) if parts else "—"
+    Args:
+        workflows: Pre-loaded workflow data. If ``None``, loads from disk.
+        workflows_dir: Override for the workflows directory.
+    """
+    if workflows is None:
+        workflows = load_workflows(workflows_dir)
+    job_count = sum(len(workflow["jobs"]) for workflow in workflows)
+    now = datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC")
+
+    lines = [
+        "# CI Workflow Map\n\n",
+        f"*Generated: {now}*\n\n",
+        f"**{len(workflows)} workflows** with **{job_count} jobs**\n\n",
+        "## Workflows\n\n",
+        "| Workflow | File | Triggers | Jobs |\n",
+        "|---|---|---|---|\n",
+    ]
+    for workflow in workflows:
+        lines.append(
+            f"| `{workflow['name']}` | `{workflow['file_name']}` | "
+            f"{workflow['triggers']} | {len(workflow['jobs'])} |\n"
+        )
+
+    lines.extend(
+        [
+            "\n## Jobs\n\n",
+            "| Workflow | Job | Needs | Uploads | Downloads |\n",
+            "|---|---|---|---|---|\n",
+        ]
+    )
+    for workflow in workflows:
+        for job in workflow["jobs"]:
+            lines.append(
+                f"| `{workflow['name']}` | `{job['name']}` | {_render(job['needs'])} | "
+                f"{_render(job['uploads'])} | {_render(job['downloads'])} |\n"
+            )
+
+    lines.append("\n")
+    return "".join(lines)
+
+
+# ── Workflow loading ────────────────────────────────────
 
 
 def load_workflows(workflows_dir: Path | None = None) -> list[dict[str, object]]:
@@ -113,54 +122,53 @@ def load_workflows(workflows_dir: Path | None = None) -> list[dict[str, object]]
     return workflows
 
 
+# ── Formatting helpers ──────────────────────────────────
+
+
+def _artifact_names(steps: object, prefix: str) -> tuple[str, ...]:
+    """Collect upload/download artifact names from a list of steps."""
+    if not isinstance(steps, list):
+        return ()
+    names: list[str] = []
+    for step in steps:
+        if not isinstance(step, dict):
+            continue
+        uses = step.get("uses")
+        if not isinstance(uses, str) or not uses.startswith(prefix):
+            continue
+        with_section = step.get("with", {})
+        if isinstance(with_section, dict):
+            name = with_section.get("name")
+            names.append(str(name) if name else "(all artifacts)")
+    return tuple(names)
+
+
+def _trigger_summary(data: dict[object, object]) -> str:
+    """Render the top-level ``on`` section as a compact string."""
+    on_section = data.get("on", data.get(True, {}))
+    if isinstance(on_section, str):
+        return f"`{on_section}`"
+    if isinstance(on_section, list):
+        return ", ".join(f"`{item}`" for item in on_section)
+    if not isinstance(on_section, dict):
+        return "—"
+
+    parts: list[str] = []
+    for name, value in on_section.items():
+        suffix = ""
+        if isinstance(value, dict):
+            if name in {"push", "pull_request", "pull_request_target"}:
+                branches = value.get("branches")
+                if isinstance(branches, list) and branches:
+                    suffix = f"({', '.join(str(branch) for branch in branches)})"
+            elif name == "workflow_run":
+                workflows = value.get("workflows")
+                if isinstance(workflows, list) and workflows:
+                    suffix = f"({', '.join(str(workflow) for workflow in workflows)})"
+        parts.append(f"`{name}{suffix}`")
+    return ", ".join(parts) if parts else "—"
+
+
 def _render(values: tuple[str, ...]) -> str:
     """Render a tuple of values into one Markdown table cell."""
     return "<br>".join(f"`{value}`" for value in values) if values else "—"
-
-
-def generate_ci_map(
-    workflows: list[dict[str, object]] | None = None,
-    *,
-    workflows_dir: Path | None = None,
-) -> str:
-    """Generate the Markdown CI map.
-
-    Args:
-        workflows: Pre-loaded workflow data. If ``None``, loads from disk.
-        workflows_dir: Override for the workflows directory.
-    """
-    if workflows is None:
-        workflows = load_workflows(workflows_dir)
-    job_count = sum(len(workflow["jobs"]) for workflow in workflows)
-    now = datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC")
-
-    lines = [
-        "# CI Workflow Map\n\n",
-        f"*Generated: {now}*\n\n",
-        f"**{len(workflows)} workflows** with **{job_count} jobs**\n\n",
-        "## Workflows\n\n",
-        "| Workflow | File | Triggers | Jobs |\n",
-        "|---|---|---|---|\n",
-    ]
-    for workflow in workflows:
-        lines.append(
-            f"| `{workflow['name']}` | `{workflow['file_name']}` | "
-            f"{workflow['triggers']} | {len(workflow['jobs'])} |\n"
-        )
-
-    lines.extend(
-        [
-            "\n## Jobs\n\n",
-            "| Workflow | Job | Needs | Uploads | Downloads |\n",
-            "|---|---|---|---|---|\n",
-        ]
-    )
-    for workflow in workflows:
-        for job in workflow["jobs"]:
-            lines.append(
-                f"| `{workflow['name']}` | `{job['name']}` | {_render(job['needs'])} | "
-                f"{_render(job['uploads'])} | {_render(job['downloads'])} |\n"
-            )
-
-    lines.append("\n")
-    return "".join(lines)
