@@ -3,8 +3,9 @@
 
 """MkDocs plugin that wraps mkdocs-terok generators into a single ``terok`` plugin.
 
-Adds ``File.generated()`` entries for CI maps, quality reports, test maps, and
-API reference pages — eliminating the need for ``mkdocs-gen-files`` shim scripts.
+Adds ``File.generated()`` entries for CI maps, quality reports, test maps, module
+maps, and API reference pages — eliminating the need for ``mkdocs-gen-files`` shim
+scripts.
 Asset injection (CSS / JS) is handled automatically via ``on_config``.
 """
 
@@ -61,6 +62,11 @@ class TerokPluginConfig(Config):
     test_map_title = c.Type(str, default="Integration Test Map")
     test_map_integration_dir = c.Optional(c.Type(str))
 
+    # Module map
+    module_map = c.Type(bool, default=False)
+    module_map_path = c.Type(str, default="module-map.md")
+    module_map_title = c.Type(str, default="Module Map")
+
     # Reference pages
     ref_pages = c.Type(bool, default=False)
     ref_pages_path = c.Type(str, default="reference")
@@ -109,6 +115,8 @@ class TerokPlugin(BasePlugin[TerokPluginConfig]):
             self._generate_quality_report(files, config)
         if self.config.test_map:
             self._generate_test_map(files, config)
+        if self.config.module_map:
+            self._generate_module_map(files, config)
         if self.config.ref_pages:
             self._generate_ref_pages(files, config)
 
@@ -179,6 +187,15 @@ class TerokPlugin(BasePlugin[TerokPluginConfig]):
         markdown = generate_test_map(config=tm_config)
         files.append(File.generated(config, self.config.test_map_path, content=markdown))
         log.info(_LOG_GENERATED, self.config.test_map_path)
+
+    def _generate_module_map(self, files: Files, config: MkDocsConfig) -> None:
+        """Emit a virtual module map page from source docstrings."""
+        from mkdocs_terok.module_map import ModuleMapConfig, generate_module_map
+
+        mm_config = ModuleMapConfig(title=self.config.module_map_title)
+        markdown = generate_module_map(mm_config)
+        files.append(File.generated(config, self.config.module_map_path, content=markdown))
+        log.info(_LOG_GENERATED, self.config.module_map_path)
 
     def _generate_ref_pages(self, files: Files, config: MkDocsConfig) -> None:
         """Emit API reference stubs and a literate-nav SUMMARY.md."""
