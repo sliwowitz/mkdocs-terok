@@ -11,17 +11,23 @@ from textwrap import dedent
 import pytest
 
 from mkdocs_terok.module_map import (
+    FileType,
     ModuleMapConfig,
+    _classify,
     _collect_py_files,
     _detect_package_root,
+    _domain_groups,
     _extract_docstrings,
     _file_to_layer,
     _group_by_directory,
     _group_by_tach,
     _module_label,
     _parse_tach,
+    _render_catalog,
     _render_layer,
     _render_module,
+    _render_narrative,
+    _render_waypoint,
     _TachConfig,
     generate_module_map,
 )
@@ -39,6 +45,18 @@ def test_module_label_single_file() -> None:
     """Top-level file produces a single-component label."""
     pkg = Path("/src/mypackage")
     assert _module_label(pkg / "utils.py", pkg) == "utils"
+
+
+def test_module_label_init_file() -> None:
+    """__init__.py labels use the package name, not __init__."""
+    pkg = Path("/src/mypackage")
+    assert _module_label(pkg / "core" / "__init__.py", pkg) == "core"
+
+
+def test_module_label_root_init() -> None:
+    """Root __init__.py uses the package directory name."""
+    pkg = Path("/src/mypackage")
+    assert _module_label(pkg / "__init__.py", pkg) == "mypackage"
 
 
 # ── _detect_package_root ────────────────────────────────
@@ -93,25 +111,44 @@ def test_extract_docstrings_module_and_classes(tmp_path: Path) -> None:
             pass
     ''')
     )
-    module_doc, classes = _extract_docstrings(src)
+    module_doc, classes, func_count = _extract_docstrings(src)
     assert module_doc == "Module docstring."
     assert classes == [("Foo", "Foo does things."), ("Bar", "")]
+    assert func_count == 0
 
 
 def test_extract_docstrings_syntax_error(tmp_path: Path) -> None:
     """Syntax errors produce empty results without crashing."""
     src = tmp_path / "broken.py"
     src.write_text("def f(:\n")
-    module_doc, classes = _extract_docstrings(src)
+    module_doc, classes, func_count = _extract_docstrings(src)
     assert module_doc == ""
     assert classes == []
+    assert func_count == 0
+
+
+def test_extract_docstrings_counts_public_functions(tmp_path: Path) -> None:
+    """Public function count excludes private (underscore-prefixed) functions."""
+    src = tmp_path / "funcs.py"
+    src.write_text(
+        dedent('''\
+        """Module with functions."""
+
+        def public_one(): pass
+        def public_two(): pass
+        def _private(): pass
+        async def public_async(): pass
+    ''')
+    )
+    _, _, func_count = _extract_docstrings(src)
+    assert func_count == 3
 
 
 # ── _collect_py_files ───────────────────────────────────
 
 
-def test_collect_py_files_skips_init(tmp_path: Path) -> None:
-    """__init__.py files are excluded from collection."""
+def test_collect_py_files_includes_init(tmp_path: Path) -> None:
+    """__init__.py files are included in collection."""
     (tmp_path / "__init__.py").touch()
     (tmp_path / "core.py").touch()
     sub = tmp_path / "sub"
@@ -121,7 +158,7 @@ def test_collect_py_files_skips_init(tmp_path: Path) -> None:
 
     files = _collect_py_files(tmp_path)
     names = [f.name for f in files]
-    assert "__init__.py" not in names
+    assert "__init__.py" in names
     assert "core.py" in names
     assert "engine.py" in names
 
@@ -164,6 +201,8 @@ def tach_config() -> _TachConfig:
             "mypkg": "support",
             "mypkg.cli": "cli",
         },
+        source_roots=["src"],
+        config_dir=Path("/"),
     )
 
 
@@ -224,15 +263,17 @@ def test_group_by_tach_unassigned_files(tmp_path: Path) -> None:
     tach = _TachConfig(
         layers=["core"],
         module_layers={"mypkg.core": "core"},
+        source_roots=["src"],
+        config_dir=tmp_path,
     )
     py_files = _collect_py_files(pkg)
-    layers = _group_by_tach(py_files, src, tach)
+    layers = _group_by_tach(py_files, tach)
     layer_names = [name for name, _files in layers]
 
     assert "(other)" in layer_names
 
 
-def test_group_by_tach_orders_by_layer(tmp_path: Path, tach_config: _TachConfig) -> None:
+def test_group_by_tach_orders_by_layer(tmp_path: Path) -> None:
     """Files are grouped and ordered according to the tach layers list."""
     src = tmp_path / "src"
     pkg = src / "mypkg"
@@ -241,8 +282,19 @@ def test_group_by_tach_orders_by_layer(tmp_path: Path, tach_config: _TachConfig)
         d.mkdir(parents=True)
         (d / f"{subdir}_mod.py").write_text(f'"""Module in {subdir}."""\n')
 
+    tach = _TachConfig(
+        layers=["cli", "support", "core", "common"],
+        module_layers={
+            "mypkg.common": "common",
+            "mypkg.core": "core",
+            "mypkg.lib": "support",
+            "mypkg.cli": "cli",
+        },
+        source_roots=["src"],
+        config_dir=tmp_path,
+    )
     py_files = _collect_py_files(pkg)
-    layers = _group_by_tach(py_files, src, tach_config)
+    layers = _group_by_tach(py_files, tach)
     layer_names = [name for name, _files in layers]
 
     assert layer_names == ["common", "core", "support", "cli"]
@@ -301,7 +353,7 @@ def test_render_layer_empty_when_no_docs(tmp_path: Path) -> None:
     """Layer with only undocumented files returns empty list."""
     src = tmp_path / "bare.py"
     src.write_text("x = 1\n")
-    assert _render_layer(tmp_path, "empty_layer", [src]) == []
+    assert _render_layer(tmp_path, tmp_path, "empty_layer", [src]) == []
 
 
 def test_render_module_no_docs(tmp_path: Path) -> None:
@@ -369,3 +421,180 @@ def test_generate_module_map_with_tach(tmp_path: Path, monkeypatch: pytest.Monke
     common_pos = result.index("## common")
     core_pos = result.index("## core")
     assert common_pos < core_pos
+
+
+# ── _classify ──────────────────────────────────────────
+
+
+def test_classify_waypoint_from_docstring() -> None:
+    """Modules whose docstring contains delegation language are waypoints."""
+    p = Path("mod.py")
+    assert (
+        _classify(p, "Public API facade. Delegates to collaborators.", [], 0) == FileType.WAYPOINT
+    )
+    assert _classify(p, "Waypoint for the nft subsystem.", [], 0) == FileType.WAYPOINT
+    assert _classify(p, "Re-export public symbols.", [], 0) == FileType.WAYPOINT
+
+
+def test_classify_waypoint_from_init() -> None:
+    """__init__.py with a docstring is always classified as waypoint."""
+    init = Path("pkg/__init__.py")
+    assert _classify(init, "Some package.", [], 5) == FileType.WAYPOINT
+    # Without a docstring, __init__.py falls through to default
+    assert _classify(init, "", [], 0) == FileType.NARRATIVE
+
+
+def test_classify_catalog_from_class_count() -> None:
+    """Modules with many classes and few functions are catalogs."""
+    p = Path("types.py")
+    classes = [("A", "a"), ("B", "b"), ("C", "c"), ("D", "d")]
+    assert _classify(p, "Types module.", classes, 0) == FileType.CATALOG
+    assert _classify(p, "Types module.", classes, 2) == FileType.CATALOG
+    # Too many functions → narrative
+    assert _classify(p, "Types module.", classes, 3) == FileType.NARRATIVE
+
+
+def test_classify_narrative_default() -> None:
+    """Modules that match no special pattern default to narrative."""
+    p = Path("mod.py")
+    assert _classify(p, "Regular module.", [("Foo", "foo")], 5) == FileType.NARRATIVE
+    assert _classify(p, "", [], 0) == FileType.NARRATIVE
+
+
+# ── Renderers ──────────────────────────────────────────
+
+
+def test_render_narrative_output() -> None:
+    """Narrative renderer produces prose with class blockquotes."""
+    result = _render_narrative(
+        "pkg.engine", "The engine.", [("Engine", "Main engine.\n\nDetails.")]
+    )
+    assert "### `pkg.engine`" in result
+    assert "The engine." in result
+    assert "**Engine** — Main engine." in result
+    assert "> Details." in result
+
+
+def test_render_catalog_output() -> None:
+    """Catalog renderer produces a markdown table."""
+    classes = [("Foo", "First."), ("Bar", "Second.")]
+    result = _render_catalog("pkg.types", "Type definitions.", classes)
+    assert "*(catalog)*" in result
+    assert "| Type | Description |" in result
+    assert "| `Foo` | First. |" in result
+    assert "| `Bar` | Second. |" in result
+
+
+def test_render_waypoint_output() -> None:
+    """Waypoint renderer produces a bullet list."""
+    classes = [("Shield", "Public API.")]
+    result = _render_waypoint("pkg", "Facade. Delegates to collaborators.", classes)
+    assert "*(waypoint)*" in result
+    assert "- **Shield** — Public API." in result
+
+
+def test_render_module_dispatches_by_type(tmp_path: Path) -> None:
+    """_render_module classifies and dispatches to the correct renderer."""
+    waypoint = tmp_path / "facade.py"
+    waypoint.write_text('"""Public facade. Delegates to engine."""\n')
+    result = _render_module(tmp_path, waypoint)
+    assert result is not None
+    assert "*(waypoint)*" in result
+
+    catalog = tmp_path / "types.py"
+    catalog.write_text(
+        dedent('''\
+        """Type definitions."""
+        class A:
+            """A."""
+        class B:
+            """B."""
+        class C:
+            """C."""
+        class D:
+            """D."""
+    ''')
+    )
+    result = _render_module(tmp_path, catalog)
+    assert result is not None
+    assert "*(catalog)*" in result
+
+
+def test_render_module_depth_parameter(tmp_path: Path) -> None:
+    """Depth parameter controls heading level."""
+    src = tmp_path / "mod.py"
+    src.write_text('"""A module."""\n')
+    result_h3 = _render_module(tmp_path, src, depth=3)
+    result_h4 = _render_module(tmp_path, src, depth=4)
+    assert result_h3 is not None
+    assert result_h4 is not None
+    assert result_h3.startswith("### ")
+    assert result_h4.startswith("#### ")
+
+
+# ── _domain_groups ─────────────────────────────────────
+
+
+def test_domain_groups_multiple_domains(tmp_path: Path) -> None:
+    """Files from multiple subpackages produce named groups."""
+    nft = tmp_path / "nft"
+    dns = tmp_path / "dns"
+    nft.mkdir()
+    dns.mkdir()
+    paths = [
+        nft / "constants.py",
+        nft / "rules.py",
+        dns / "resolver.py",
+    ]
+    for p in paths:
+        p.touch()
+
+    groups = _domain_groups(paths, tmp_path)
+    group_names = [name for name, _ in groups]
+    assert "nft" in group_names
+    assert "dns" in group_names
+
+
+def test_domain_groups_single_domain(tmp_path: Path) -> None:
+    """Files from a single domain produce one unnamed group."""
+    sub = tmp_path / "core"
+    sub.mkdir()
+    paths = [sub / "a.py", sub / "b.py"]
+    for p in paths:
+        p.touch()
+
+    groups = _domain_groups(paths, tmp_path)
+    assert len(groups) == 1
+    assert groups[0][0] == ""
+
+
+def test_domain_groups_flat_files(tmp_path: Path) -> None:
+    """Files directly under pkg_root produce one unnamed group."""
+    paths = [tmp_path / "a.py", tmp_path / "b.py"]
+    for p in paths:
+        p.touch()
+
+    groups = _domain_groups(paths, tmp_path)
+    assert len(groups) == 1
+    assert groups[0][0] == ""
+
+
+# ── CLI ────────────────────────────────────────────────
+
+
+def test_main_writes_to_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """CLI --output writes markdown to the specified file."""
+    from mkdocs_terok.module_map import main
+
+    pkg = tmp_path / "src" / "mypkg"
+    pkg.mkdir(parents=True)
+    (pkg / "__init__.py").touch()
+    (pkg / "engine.py").write_text('"""Engine module."""\n')
+    out = tmp_path / "output.md"
+
+    monkeypatch.setattr("sys.argv", ["module_map", str(pkg), "--no-tach", "-o", str(out)])
+    main()
+
+    content = out.read_text()
+    assert "# Module Map" in content
+    assert "engine" in content
