@@ -1,6 +1,6 @@
 # mkdocs-terok
 
-Shared [ProperDocs](https://properdocs.org/) documentation generators for terok projects.
+Shared [ProperDocs](https://properdocs.org/) documentation generators for [terok](https://terok-ai.github.io/terok/) projects.
 
 ## Overview
 

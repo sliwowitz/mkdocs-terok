@@ -23,7 +23,7 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://terok.ai/"
+Homepage = "https://terok-ai.github.io/mkdocs-terok/"
 Repository = "https://github.com/terok-ai/mkdocs-terok"
 Documentation = "https://terok-ai.github.io/mkdocs-terok/"
 Issues = "https://github.com/terok-ai/mkdocs-terok/issues"
