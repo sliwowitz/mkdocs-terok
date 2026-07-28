@@ -51,7 +51,7 @@ terok = "mkdocs_terok.plugin:TerokPlugin"
 
 [dependency-groups]
 dev = [
-    "ruff>=0.8",
+    "ruff~=0.16.0",
     "docstr-coverage>=2.3.2,<3",
     "vulture>=2.12",
     "reuse>=6.2.0,<7",
