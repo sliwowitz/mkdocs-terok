@@ -166,7 +166,7 @@ jobs:
           SCC_SHA256: 6c31f4d0cf3b7a8c5ca910fa4e451949434798f6541ec5dea4b83f4973e13772
         run: |
           set -euo pipefail
-          curl -fsSLo /tmp/scc.tar.gz \
+          curl --proto '=https' --tlsv1.2 -fsSLo /tmp/scc.tar.gz \
             "https://github.com/boyter/scc/releases/download/v3.5.0/scc_Linux_x86_64.tar.gz"
           echo "${SCC_SHA256}  /tmp/scc.tar.gz" | sha256sum -c -
           sudo tar -xzf /tmp/scc.tar.gz -C /usr/local/bin scc
@@ -175,7 +175,7 @@ jobs:
         run: uv sync --locked --group docs
 
       - name: Build documentation
-        run: uv run properdocs build --strict
+        run: uv run --no-sync properdocs build --strict
 
       - name: Upload docs artifact
         if: github.event_name == 'pull_request'
@@ -200,4 +200,4 @@ jobs:
           enable-cache: true
 
       - name: Verify README renders for PyPI
-        run: uv run --no-project --with 'readme-renderer[md]' python -m readme_renderer README.md --format md
+        run: uv run --no-project --with 'readme-renderer[md]==45.0' python -m readme_renderer README.md --format md
