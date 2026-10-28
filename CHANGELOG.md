@@ -1,4 +1,15 @@
 # Changelog
+## v0.8.3 — A Man Alone
+
+* Raise the documentation build's Material minimum to 9.8.0 and refresh its lock
+  entry to include the upstream security dependency minimums.
+* Update the runtime squarify dependency to 0.4.5 and include accumulated
+  development dependency and CI action updates since 0.8.2.
+* Clarify that consumers declare and lock their own theme and additional plugins;
+  upgrading mkdocs-terok alone does not update their Material dependency.
+
+**Full Changelog**: https://github.com/terok-ai/mkdocs-terok/compare/v0.8.2...v0.8.3
+
 ## v0.8.2 — You could use a new suit.
 
 * 3rd party dependency updates only.
