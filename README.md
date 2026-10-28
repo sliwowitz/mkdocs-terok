@@ -50,6 +50,13 @@ docs = [
 ]
 ```
 
+The package installs ProperDocs and its core generator dependencies. Config
+reference generation additionally requires consumer-supplied Pydantic v2.
+Consumers must declare their theme and additional plugins in their own docs
+requirements. This repository's `docs` group requires `mkdocs-material>=9.8.0`;
+that group and its lockfile are not installed with the published package.
+Upgrading `mkdocs-terok` alone does not upgrade Material in a consumer's lockfile.
+
 ## Configuration
 
 Configured via the `terok` plugin in your `properdocs.yml`.  See this
