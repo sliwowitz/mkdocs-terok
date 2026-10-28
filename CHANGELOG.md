@@ -1,5 +1,5 @@
 # Changelog
-## v0.8.3 — Dependency refresh
+## v0.8.3 — A Man Alone
 
 * Raise the documentation build's Material minimum to 9.8.0 and refresh its lock
   entry to include the upstream security dependency minimums.
