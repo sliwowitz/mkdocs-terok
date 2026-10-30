@@ -47,6 +47,7 @@ actually affected.
 - **Docstrings**: Required for all public functions, classes, and modules (95% min)
 - **Cross-references in docstrings**: use mkdocstrings autoref syntax `` [`Name`][module.path.Name] `` — never the Sphinx ``:class:`Name``` / ``:func:`name``` forms. Sphinx roles render as literal text on the rendered docs site (mkdocstrings doesn't process them). Prefer the explicit full path over the bare `` [`Name`][] `` autoref form: explicit paths keep `properdocs build --strict` green even when the symbol's short name isn't unique. For external symbols, use the dependency's own path (e.g. `` [`Sandbox`][terok_sandbox.Sandbox] ``, `` [`StreamReader`][asyncio.StreamReader] ``) — those resolve via the inventories listed in `properdocs.yml`.
 - **SPDX headers**: Every `.py` file must have an SPDX header
+- **Machine-read comments are ASCII-only**: a comment that a tool parses — a suppression marker (`# noqa`, `# nosec`, `# type: ignore`, `# pragma: no cover`, `# NOSONAR`) or another directive (`# fmt: off`, `# pylint: disable`) — uses ASCII only, its reason included.  Write `# noqa: BLE001 - reason` with a plain hyphen.  Keep commas out of a `noqa` reason: SonarCloud reads a comma as the start of another rule code, so use a semicolon.  Ordinary comments may use any UTF-8, and docstrings are welcome to use proper typography.
 - **No runtime dependency on the doc engine in generator modules**: Only
   `plugin.py` imports `properdocs`; each generator module produces strings and
   consumers handle I/O
