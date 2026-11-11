@@ -92,6 +92,12 @@ jobs:
   test:
     if: github.repository == 'terok-ai/mkdocs-terok'
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.15"]
+    env:
+      UV_PYTHON: ${{ matrix.python-version }}
     steps:
       - uses: actions/checkout@v7
 
@@ -99,7 +105,7 @@ jobs:
         id: setup-python
         uses: actions/setup-python@v7
         with:
-          python-version: "3.12"
+          python-version: ${{ matrix.python-version }}
 
       - name: Install uv
         uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
@@ -113,6 +119,7 @@ jobs:
         run: make test
 
       - name: Generate coverage JSON (treemap input)
+        if: matrix.python-version == '3.12'
         # docs.yml consumes reports/coverage.json to render mkdocs-terok's
         # own coverage treemap. `coverage json` reads the .coverage data file
         # produced by `make test` above, so this does NOT re-run the test
@@ -120,6 +127,7 @@ jobs:
         run: uv run --no-sync coverage json -o reports/coverage.json
 
       - name: Upload coverage artifact
+        if: matrix.python-version == '3.12'
         # Consumed by docs.yml's master deploy via dawidd6/action-download-artifact.
         # Same well-known-address contract as the sibling repos: workflow=ci.yml
         # job=test artifact=coverage contains reports/coverage.{json,xml}.
@@ -132,7 +140,7 @@ jobs:
           retention-days: 1
 
       - name: Upload coverage to Codecov
-        if: always()
+        if: always() && matrix.python-version == '3.12'
         uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v5
         with:
           files: reports/coverage.xml
